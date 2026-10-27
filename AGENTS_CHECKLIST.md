@@ -31,6 +31,14 @@ Mark each check verified, not applicable (with reason), missing, or blocked. Do 
 - [ ] Check release packaging policy: only ReelAnvil artifacts and `docs/licensing/` notices bundled; other docs excluded; no third-party images/models/executables bundled.
 - [ ] Identify unresolved license copyright holder, dependency notices, trademark conflict check and installer verification as release gates where applicable.
 
+## Local Work process
+- [ ] Confirm local checkout is the working source of truth and GitHub is its mirror/shared checkpoint; preserve unrelated changes.
+- [ ] For builds, retain relevant logs and artifact hashes outside maintained source; report build, tests, deployment, and user validation as separate evidence stages.
+- [ ] Do not deploy/install remotely without explicit maintainer authorization.
+- [ ] After **every push**, prepare a commit ZIP, ZIP SHA-256, per-file path/size/Git-blob-SHA-1/SHA-256 manifest, and `HANDOFF.md` for Chat under `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/deliverables/`.
+- [ ] Verify package integrity and that its tracked contents match the exact pushed commit; keep current package in `deliverables/`, archive older complete revisions under `deliverables/archive/`, retaining the prior five.
+- [ ] Keep generated output and temporary files out of maintained source/commits unless required; release-only merge and branch reset/recreation require the maintainer's release approval.
+
 ## 5. Final report
 - [ ] Report updated 0–100% confidence by the **same seven categories** as Stage 1: goals/requirements; architecture/integrations; workflow; source baseline; status/priorities; documentation/decisions; overall understanding.
 - [ ] State explicitly whether both agent files were fully read.

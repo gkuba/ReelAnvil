@@ -18,6 +18,16 @@
 5. ChatGPT checks the returned evidence and GitHub SHA, then updates `docs/STATUS.md`, `docs/CHANGELOG.md`, `docs/BUILD_HISTORY.md`, and the Library checkpoint as appropriate. A generated patch or unpushed local build is **not** completed work.
 6. Do not overwrite unrelated local changes, secrets, user data, or generated media. Escalate discrepancies before proceeding. Failed attempts belong in build history/status where relevant, not the release changelog.
 
+## Local Work build, deployment, and GitHub handoff
+- The local checkout at `/home/katala/Projects/ReelAnvil` is the authoritative working source. GitHub `main`/`dev` branches are mirrors and shared checkpoints for Chat; the Chat Global Library is a separate verified copy. The maintainer directs work and approves releases.
+- Before source changes, inspect the working tree and preserve a dated source snapshot/manifest when the change warrants recovery. Never overwrite unrelated or uncommitted work. Keep generated build/test output out of maintained source and commits unless explicitly required.
+- Build and validate locally, preserve relevant logs and artifact hashes outside the maintained source, and distinguish source review, compilation, automated tests, deployment, and user validation. Never claim a later stage from an earlier one.
+- Remote deployment or installation is performed only after the maintainer explicitly authorizes access. Do not copy builds to a live host or install them there before that authorization.
+- Push only the verified commit to the intended GitHub branch after confirming its destination and branch state. GitHub is a mirror/checkpoint, not the local source of truth.
+- **After every GitHub push, prepare a complete commit ZIP and handoff for the maintainer to give Chat.** Store these under `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/deliverables/`. Include the exact pushed tracked tree as a ZIP, a SHA-256 checksum for the ZIP, a per-file manifest with paths/sizes/Git blob IDs and SHA-256 values, and a `HANDOFF.md` identifying repository, branch, full commit SHA, tracked-file count, ZIP checksum, scope, and honest build/test/deployment evidence. Verify ZIP integrity and local commit/tree identity before delivery. Do this for development pushes as well as release pushes.
+- Keep only the current package in `deliverables/`; move prior complete packages together into `deliverables/archive/`. Retain the previous five revisions. Before pruning an older revision, verify the current package and five newest archives are intact; never delete ambiguous or irreplaceable evidence.
+- Release builds, squash/merge to `main`, and creation of the next `dev` branch follow the maintainer's approved release workflow. Development build/push does not itself authorize deployment, release, or publication.
+
 ## Engineering boundaries
 - One Go codebase, separate `reelanvil serve`, `reelanvil worker`, `reelanvil doctor` processes (names provisional); web server never receives Docker socket access. Narrow Docker API access belongs only to authenticated worker.
 - Debian 13 Linux-first; Windows/macOS experimental until tested. SQLite persistent state; explicit migrations, backup and recovery.
