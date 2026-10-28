@@ -28,3 +28,17 @@ This is the **single maintained build history**. Append dated records here rathe
 - Evidence logs and binary hash: `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.1 Validation/`.
 - Start/stop, developer commands, and maintainer checks: [`DEVELOPMENT.md`](DEVELOPMENT.md).
 - Next: maintainer review/acceptance; then decide on remote validation and development push. Preserve this `dev` candidate and do not publish a release without explicit approval.
+
+### 2026-10-27 — Build 0.2 six-theme prototype candidate
+
+- Handoff: `ReelAnvil_Build_0.2_Work_Handoff.zip`; archive SHA-256 `00d5a031073597572353dad293aeae37bce59b96ce4a730aaad98e3d2edee7a9`; patch SHA-256 `11051737a2a5c9890b5dc229a379154488b00860958ab0268d27ad206a149d03`.
+- Baseline repository/branch/commit: `gkuba/ReelAnvil`, local and `origin/dev`, `82fd874dea709cfa242b034c87af230db3beb329`; working tree was clean. Local GitHub-tracking refs agreed before patching.
+- Both changed files matched the handoff's post-patch SHA-256 and size before formatting or further edits. `gofmt -l internal/app/app.go internal/app/app_test.go` returned no files.
+- Environment: Linux AMD64, Go `go1.27.1-X:nodwarf5`; `go test ./...` passed, `go vet ./...` passed, and `./scripts/build-dev.sh` succeeded. Binary: `bin/Release/reelanvil`, SHA-256 `a9205a08dddccb846b773ae101a685fe49702f742b45ae568960ea38665a06d7`.
+- Visual browser review confirmed all six theme choices immediately changed the settings-page palette and controls. Saving Tokyo Night returned the expected settings confirmation and persisted across a server restart. Runtime fixture checks confirmed `dark` -> `tomorrow-night`, `slate` -> `tokyo-night`, `pastel` -> `nocturne`, and an unrecognized value -> `aurora`; migrated values were persisted and rendered.
+- `/healthz` returned HTTP 200 with `{"status":"ok"}`; `/settings`, `/`, `/jobs`, and `/diagnostics` returned HTTP 200. The test setting was restored to Aurora. The local server remains running at `127.0.0.1:18080` for maintainer review.
+- The existing `bin/Release/` runtime files and binary were preserved before the build script cleared its target. Snapshot: `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.2 Validation/prebuild-bin-Release/`; source baseline archive and checksum are in the same folder.
+- Outcome: local build and checks passed; maintainer accepted the served candidate. No remote deployment, release merge, or `dist/` package has occurred.
+- Evidence: `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.2 Validation/`. Developer start/stop commands and maintainer check parameters: [`DEVELOPMENT.md`](DEVELOPMENT.md).
+- Git delivery: accepted Build 0.2 source was committed and pushed to `dev`; exact commit and archive checksum are recorded in the Chat handoff package. No release action is authorized by this candidate.
+- Next: Chat validation of the pushed source checkpoint. Local preview can be started from `bin/Release` with `REELANVIL_ADDR=127.0.0.1:18080 ./reelanvil serve` and stopped with Ctrl+C.
