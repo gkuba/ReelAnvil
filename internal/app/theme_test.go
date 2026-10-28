@@ -29,7 +29,7 @@ func TestThemePaletteTokens(t *testing.T) {
 }
 
 func TestSettingsNavigationUsesInlineSVGIcons(t *testing.T) {
-	source := pageTemplate.Tree.Root.String()
+	source := pageTemplate.Tree.Root.String() + sidebarTemplateSource
 	if got := strings.Count(source, `class="rail-icon"`); got < 15 {
 		t.Fatalf("navigation has %d inline icons, want at least 15", got)
 	}
@@ -52,8 +52,8 @@ func TestDraculaConsolidatedAndNavigationContrast(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("want one Dracula, got %d", count)
 	}
-	src := pageTemplate.Tree.Root.String()
-	for _, needle := range []string{"#app-sidebar .rail-flyout a:visited", "text-decoration:none!important", "color-mix(in srgb,var(--accent) 24%", "--tertiary:#ff79c6"} {
+	src := pageTemplate.Tree.Root.String() + sidebarCSS
+	for _, needle := range []string{"#app-sidebar .rail-flyout a:hover", "#app-sidebar nav a.active", "color-mix(in srgb,var(--accent) 23%", "--tertiary:#ff79c6"} {
 		if !strings.Contains(src, needle) {
 			t.Errorf("missing nav or palette rule: %s", needle)
 		}

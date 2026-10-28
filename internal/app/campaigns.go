@@ -19,6 +19,9 @@ type campaignPageData struct {
 	BodyTheme                                                     string
 	ThemeCSS                                                      template.CSS
 	IconURL                                                       string
+	SidebarHTML                                                   template.HTML
+	SidebarCSS                                                    template.CSS
+	SidebarScript                                                 template.JS
 	Campaigns                                                     []store.Campaign
 	Available, Tracked, EndingSoon                                int
 	Platforms                                                     []platformOption
@@ -49,7 +52,6 @@ func (s *Server) campaignSnapshot() ([]store.Campaign, error) {
 func (s *Server) campaignConfig() (Settings, template.CSS) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ensureThemeIcons(&s.cfg, s.themes)
 	return s.cfg, template.CSS(themeCSS(s.themes))
 }
 
@@ -116,7 +118,8 @@ func (s *Server) campaignsPage(w http.ResponseWriter, r *http.Request) {
 		return a.ID < b.ID
 	})
 	cfg, css := s.campaignConfig()
-	data := campaignPageData{Section: "campaigns", View: view, Search: search, Platform: platform, Status: status, Sort: sortKey, Message: r.URL.Query().Get("message"), Error: r.URL.Query().Get("error"), BodyTheme: bodyTheme(cfg.Theme), ThemeCSS: css, IconURL: iconURL(selectedIcon(cfg), 64), Campaigns: rows, Available: available, Tracked: tracked, EndingSoon: ending, Platforms: campaignPlatforms, Statuses: campaignStatuses}
+	icon := iconURL(selectedIcon(cfg), 64)
+	data := campaignPageData{Section: "campaigns", View: view, Search: search, Platform: platform, Status: status, Sort: sortKey, Message: r.URL.Query().Get("message"), Error: r.URL.Query().Get("error"), BodyTheme: bodyTheme(cfg.Theme), ThemeCSS: css, IconURL: icon, SidebarHTML: renderSidebar("campaigns", icon), SidebarCSS: template.CSS(sidebarCSS), SidebarScript: template.JS(sidebarScript), Campaigns: rows, Available: available, Tracked: tracked, EndingSoon: ending, Platforms: campaignPlatforms, Statuses: campaignStatuses}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := campaignTemplate.Execute(w, data); err != nil {
 		s.log.Println("campaign page render:", err)
@@ -350,7 +353,8 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request) {
 		trackedRows = trackedRows[:5]
 	}
 	cfg, css := s.campaignConfig()
-	data := campaignPageData{Section: "overview", BodyTheme: bodyTheme(cfg.Theme), ThemeCSS: css, IconURL: iconURL(selectedIcon(cfg), 64), Campaigns: trackedRows, Available: available, Tracked: tracked, EndingSoon: ending}
+	icon := iconURL(selectedIcon(cfg), 64)
+	data := campaignPageData{Section: "overview", BodyTheme: bodyTheme(cfg.Theme), ThemeCSS: css, IconURL: icon, SidebarHTML: renderSidebar("overview", icon), SidebarCSS: template.CSS(sidebarCSS), SidebarScript: template.JS(sidebarScript), Campaigns: trackedRows, Available: available, Tracked: tracked, EndingSoon: ending}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := overviewTemplate.Execute(w, data); err != nil {
 		s.log.Println("overview render:", err)

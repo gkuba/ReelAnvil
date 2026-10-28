@@ -13,7 +13,7 @@ Separate discovered platform data from local tracked-user data so refresh never 
 View Campaign opens original page; Apply/Join and Submit Content open verified corresponding URLs when supplied. Never invent endpoints. HTTPS only, safe external-tab behavior, Copy Link. No automatic submission.
 
 ## Branding
-Default Blue-Violet Film Glow, optional Amethyst Glow and Molten Orange, configurable per interface theme under Settings → Themes. Purple mountain header on Overview. All assets local. Icon selection persists and updates sidebar/favicon. Generated source sheets require icon-only extraction and maintainer review; original orange prepared icon pack is included as an additional reference.
+Default Blue-Violet Film Glow, optional Amethyst Glow and Molten Orange, configurable as one global icon choice under Settings → Themes, independent of interface theme. Purple mountain header on Overview. All assets local. Icon selection persists and updates sidebar/favicon. Generated source sheets require icon-only extraction and maintainer review; original orange prepared icon pack is included as an additional reference.
 
 ## Out of scope
 OAuth, scraping undocumented authenticated endpoints, campaign application automation, social post matching, payouts, media processing, Docker worker orchestration, remote deployment.

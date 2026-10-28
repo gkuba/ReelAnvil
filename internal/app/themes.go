@@ -301,16 +301,10 @@ func (s *Server) duplicateTheme(w http.ResponseWriter, r *http.Request) {
 	next := cloneThemes(s.themes)
 	next[id] = t
 	nextSettings := s.cfg
-	nextSettings.ThemeIcons = cloneThemeIcons(s.cfg.ThemeIcons)
-	variant := nextSettings.ThemeIcons[source]
-	if !validIconVariant(variant) {
-		variant = "blue-violet"
-	}
-	nextSettings.ThemeIcons[id] = variant
-	nextSettings.Version = 2
+	nextSettings.Version = 3
 	if err := save(s.cfgPath, nextSettings); err != nil {
-		s.log.Println("custom theme icon default save failed:", err)
-		http.Error(w, "could not save the new theme icon default", http.StatusInternalServerError)
+		s.log.Println("custom theme settings save failed:", err)
+		http.Error(w, "could not save custom theme settings", http.StatusInternalServerError)
 		return
 	}
 	if err := s.persistThemes(next); err != nil {

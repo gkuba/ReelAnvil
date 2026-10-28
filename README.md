@@ -2,7 +2,7 @@
 
 **ReelAnvil** is a planned open-source, self-hosted application for turning authorized long-form video into reviewable short-form clips.
 
-> **Project status:** Build 0.9 is a local development prototype, not a supported release. Campaign records can be added and tracked manually; most media, AI, worker, and platform integrations remain planned.
+> **Project status:** Build 0.9.1 is a local development prototype, not a supported release. Campaign records can be added and tracked manually; most media, AI, worker, and platform integrations remain planned.
 
 ## The idea
 
@@ -28,7 +28,7 @@ The planned workflow is:
 
 ## Current prototype
 
-The current development build provides the themed local web interface, persistent SQLite setup, campaign records and tracking, and per-theme icon choices. Content Rewards and Vyro discovery are explicitly unavailable: ReelAnvil does not scrape sites, log in, apply to campaigns, find social posts, or submit content. Jobs, media processing, AI, and worker pages remain placeholders.
+The current development build provides the themed local web interface, persistent SQLite setup, campaign records and tracking, and a global icon choice independent of the active interface theme. Content Rewards and Vyro discovery are explicitly unavailable: ReelAnvil does not scrape sites, log in, apply to campaigns, find social posts, or submit content. Jobs, media processing, AI, and worker pages remain placeholders.
 
 The server is unauthenticated and **must remain bound to loopback**. Do not expose it through a LAN, reverse proxy, tunnel, or public address.
 

@@ -20,7 +20,7 @@ import (
 
 func TestSettingsRoundTrip(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	original := Settings{Version: 2, InstanceName: "Test", Theme: "aurora", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "blue-violet", "tomorrow-night": "blue-violet", "nocturne": "blue-violet", "foundry": "blue-violet"}}
+	original := Settings{Version: 3, InstanceName: "Test", Theme: "aurora", IconVariant: "molten-orange", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "molten-orange", "custom": "amethyst"}}
 	if err := save(p, original); err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSettingsVersionOneMigratesThemeIcons(t *testing.T) {
+func TestSettingsVersionOneMigratesToGlobalIconDefault(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(p, []byte(`{"version":1,"instance_name":"Kept","theme":"aurora"}`), 0600); err != nil {
 		t.Fatal(err)
@@ -42,8 +42,51 @@ func TestSettingsVersionOneMigratesThemeIcons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Version != 2 || c.InstanceName != "Kept" || c.Theme != "aurora" || c.ThemeIcons["aurora"] != "blue-violet" {
+	if c.Version != 3 || c.InstanceName != "Kept" || c.Theme != "aurora" || c.IconVariant != "blue-violet" {
 		t.Fatalf("unexpected migrated settings: %+v", c)
+	}
+}
+
+func TestSettingsVersionTwoPreservesActiveThemeIconAndAllLegacyPreferences(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	legacy := `{"version":2,"instance_name":"Kept","theme":"dracula-dark","theme_icons":{"dracula-dark":"amethyst","aurora":"molten-orange","custom-copy":"amethyst"}}`
+	if err := os.WriteFile(p, []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Version != 3 || c.Theme != "dracula-dark" || c.IconVariant != "amethyst" {
+		t.Fatalf("active theme appearance changed on upgrade: %+v", c)
+	}
+	if c.ThemeIcons["aurora"] != "molten-orange" || c.ThemeIcons["custom-copy"] != "amethyst" {
+		t.Fatalf("legacy theme preferences were not preserved: %#v", c.ThemeIcons)
+	}
+}
+
+func TestSettingsMigrationKeepsIconWhenThemeIDIsMigrated(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	legacy := `{"version":2,"instance_name":"Kept","theme":"dracula-lavender","theme_icons":{"dracula-lavender":"molten-orange"}}`
+	if err := os.WriteFile(p, []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Theme != "dracula-dark" || c.IconVariant != "molten-orange" || c.ThemeIcons["dracula-lavender"] != "molten-orange" {
+		t.Fatalf("legacy theme ID migration lost saved appearance: %+v", c)
+	}
+}
+
+func TestFreshSettingsDefaultToDraculaAndBlueViolet(t *testing.T) {
+	c, err := load(filepath.Join(t.TempDir(), "missing.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Version != 3 || c.Theme != "dracula-dark" || c.IconVariant != "blue-violet" {
+		t.Fatalf("unexpected fresh defaults: %+v", c)
 	}
 }
 
@@ -95,32 +138,41 @@ func TestCampaignPagesManualTrackingEscapingAndFilters(t *testing.T) {
 	}
 }
 
-func TestThemeIconsPersistPerThemeAndServeFavicon(t *testing.T) {
+func TestGlobalIconSettingSharesThemeSaveAndServesFavicon(t *testing.T) {
 	s := securityTestServer(t)
 	h := s.handler()
-	w := postForm(t, h, "127.0.0.1:8080", "/themes/icon", "theme_key=aurora&icon_variant=amethyst", "same-origin", "http://127.0.0.1:8080", "")
+	w := postForm(t, h, "127.0.0.1:8080", "/settings", "theme_page=1&instance_name=ReelAnvil&theme=foundry&icon_variant=amethyst", "same-origin", "http://127.0.0.1:8080", "")
 	if w.Code != http.StatusSeeOther {
-		t.Fatalf("icon save status=%d body=%s", w.Code, w.Body.String())
+		t.Fatalf("theme and icon save status=%d body=%s", w.Code, w.Body.String())
 	}
 	loaded, err := load(s.cfgPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.ThemeIcons["aurora"] != "amethyst" || loaded.ThemeIcons["review-theme"] != "blue-violet" {
-		t.Fatalf("icon selection not persisted with fallback: %#v", loaded.ThemeIcons)
+	if loaded.Theme != "foundry" || loaded.IconVariant != "amethyst" {
+		t.Fatalf("theme and global icon were not saved together: %+v", loaded)
 	}
 	w = httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/settings/themes?icon_theme=aurora", nil)
+	r := httptest.NewRequest(http.MethodGet, "/settings/themes", nil)
 	r.Host = "127.0.0.1:8080"
 	h.ServeHTTP(w, r)
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Theme icon") || !strings.Contains(w.Body.String(), "/assets/branding/icon-amethyst-64.png") || !strings.Contains(w.Body.String(), "Molten Orange") {
-		t.Fatalf("theme icon settings did not render: %d", w.Code)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Application icon") || !strings.Contains(w.Body.String(), "name=\"icon_variant\" value=\"amethyst\" checked") || !strings.Contains(w.Body.String(), "Molten Orange") || strings.Contains(w.Body.String(), "icon-theme") || strings.Contains(w.Body.String(), "Save theme icon") {
+		t.Fatalf("global icon settings did not render in theme panel: %d", w.Code)
+	}
+	// Changing the interface theme without submitting an icon leaves the global choice intact.
+	w = postForm(t, h, "127.0.0.1:8080", "/settings", "theme_page=1&instance_name=ReelAnvil&theme=aurora", "same-origin", "http://127.0.0.1:8080", "")
+	if w.Code != http.StatusSeeOther || s.cfg.IconVariant != "amethyst" || s.cfg.Theme != "aurora" {
+		t.Fatalf("theme switch changed global icon: theme=%s icon=%s status=%d", s.cfg.Theme, s.cfg.IconVariant, w.Code)
 	}
 	w = httptest.NewRecorder()
 	r = httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
 	r.Host = "127.0.0.1:8080"
 	h.ServeHTTP(w, r)
-	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/vnd.microsoft.icon" || !bytes.HasPrefix(w.Body.Bytes(), []byte{0, 0, 1, 0}) {
+	wantFavicon, err := brandingAssets.ReadFile("branding/favicon-amethyst.ico")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/vnd.microsoft.icon" || !bytes.HasPrefix(w.Body.Bytes(), []byte{0, 0, 1, 0}) || !bytes.Equal(w.Body.Bytes(), wantFavicon) {
 		t.Fatalf("favicon response invalid: %d %q", w.Code, w.Header().Get("Content-Type"))
 	}
 	w = httptest.NewRecorder()
@@ -129,6 +181,55 @@ func TestThemeIconsPersistPerThemeAndServeFavicon(t *testing.T) {
 	h.ServeHTTP(w, r)
 	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/png" {
 		t.Fatalf("local icon response invalid: %d %q", w.Code, w.Header().Get("Content-Type"))
+	}
+}
+
+func TestSharedSidebarHierarchyAcrossApplicationPages(t *testing.T) {
+	s := securityTestServer(t)
+	h := s.handler()
+	paths := []string{"/", "/campaigns", "/jobs", "/media", "/review", "/diagnostics", "/settings", "/settings/themes", "/settings/connectors", "/settings/storage", "/services"}
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, path, nil)
+			r.Host = "127.0.0.1:8080"
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			body := w.Body.String()
+			if w.Code != http.StatusOK || !strings.Contains(body, `id="app-sidebar"`) {
+				t.Fatalf("shared sidebar missing on %s: %d", path, w.Code)
+			}
+			for _, href := range []string{`href="/"`, `href="/campaigns"`, `href="/jobs"`, `href="/media"`, `href="/review"`, `href="/diagnostics"`, `href="/settings"`, `href="/settings/themes"`, `href="/settings/connectors"`, `href="/settings/storage"`, `href="/services"`} {
+				if !strings.Contains(body, href) {
+					t.Errorf("%s missing from sidebar navigation: %s", path, href)
+				}
+			}
+			if strings.Contains(body, "Automation") || strings.Contains(body, "data-group=\"workflow\"") {
+				t.Errorf("legacy Automation group remains on %s", path)
+			}
+			for _, iconName := range []string{"Overview", "Campaigns", "Jobs", "Media", "Media Library", "Review", "Diagnostics", "Settings", "General", "Themes", "Connectors", "Paths &amp; Storage", "Services"} {
+				if !strings.Contains(body, iconName) {
+					t.Errorf("%s missing navigation item %q", path, iconName)
+				}
+			}
+		})
+	}
+}
+
+func TestThemeAndGlobalIconShareSingleSaveForm(t *testing.T) {
+	s := securityTestServer(t)
+	r := httptest.NewRequest(http.MethodGet, "/settings/themes", nil)
+	r.Host = "127.0.0.1:8080"
+	w := httptest.NewRecorder()
+	s.handler().ServeHTTP(w, r)
+	body := w.Body.String()
+	icon := strings.Index(body, `name="icon_variant"`)
+	refresh := strings.Index(body, `form="refresh-themes"`)
+	save := strings.Index(body, `>Save Settings</button>`)
+	if w.Code != http.StatusOK || icon < 0 || refresh < 0 || save < 0 || !(icon < refresh && refresh < save) {
+		t.Fatalf("theme panel does not place global icon before the shared save actions")
+	}
+	if strings.Contains(body, `name="theme_key"`) || strings.Contains(body, `id="icon-theme"`) || strings.Contains(body, "Save theme icon") || strings.Contains(body, "Choose an icon for each interface theme") {
+		t.Fatal("legacy per-theme icon controls remain")
 	}
 }
 
@@ -221,7 +322,7 @@ func TestCampaignMutationRoutesRejectCrossOriginPosts(t *testing.T) {
 		{"/campaigns/untrack", "id=missing"},
 		{"/campaigns/status", "id=missing&status=Active"},
 		{"/campaigns/update", "id=missing&platform=vyro&url=https%3A%2F%2Fexample.com&title=Probe&status=Active"},
-		{"/themes/icon", "theme_key=aurora&icon_variant=amethyst"},
+		{"/settings", "theme_page=1&instance_name=Probe&theme=dracula-dark&icon_variant=amethyst"},
 	}
 	for _, route := range routes {
 		t.Run(route.path, func(t *testing.T) {
@@ -296,13 +397,13 @@ func TestDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Theme != "aurora" {
+	if c.Theme != "dracula-dark" || c.IconVariant != "blue-violet" {
 		t.Fatal(c)
 	}
 }
 func TestUnsupportedVersion(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(p, []byte(`{"version":3}`), 0600); err != nil {
+	if err := os.WriteFile(p, []byte(`{"version":4}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := load(p); err == nil {

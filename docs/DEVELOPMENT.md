@@ -65,9 +65,15 @@ Keep the terminal open while using the prototype. Stop it with **Ctrl+C**. This 
 - Visit Overview and Campaigns at desktop and narrow widths. Check the mountain header, Available / Tracked / Ending Soon counts, empty states, manual campaign entry, filters, sorting, and tracked table.
 - Add a disposable campaign with a valid HTTPS URL, optional amounts/deadline, requirements, and notes. Confirm it starts as Interested; update status and details; untrack and confirm the record returns to Available with its notes/status retained; track it again and confirm prior metadata remains.
 - Confirm unverified campaign discovery is clearly unavailable for Content Rewards and Vyro. No platform is contacted. Check user text is escaped, unsafe URL schemes are rejected, and View/Apply/Submit links only appear for supplied HTTPS targets.
-- In Settings → Themes, set a different icon for a built-in theme and a custom theme, apply each theme, and confirm the sidebar icon and browser favicon follow the active theme across refresh and restart.
+- In Settings → Themes, choose an application icon in the theme panel and save it with the interface theme. Switch between built-in/custom themes and confirm the global icon stays selected and the sidebar icon/browser favicon match across refresh and restart.
 - Confirm an existing schema-v1 database starts successfully as schema v2 with its `storage_probe` retained. Test future schema rejection using a disposable database only.
 - This candidate remains unauthenticated and loopback-only. No OAuth, discovery API, applications, post search, submission, jobs, media processing, or remote deployment is included.
+
+### Build 0.9.1 navigation and theme UI correction
+
+- Confirm navigation order is Overview, Campaigns, Jobs, divider, expandable Media, divider, Diagnostics, expandable Settings. Services must remain reachable under Settings. There is no Automation group; Campaigns and Jobs appear once.
+- Verify the shared sidebar on Overview, Campaigns, Settings and placeholder pages. Check stable logo placement, active items, expanded groups, keyboard focus, compact flyouts and narrow-width wrapping.
+- Settings → Themes uses one icon choice below the theme preview, with a single Save Settings operation. Icon choice is global and does not change with the interface theme. Existing v2 settings migrate their active theme's saved icon to the global setting, retaining the prior per-theme settings data during upgrade.
 
 ### Build 0.5 Settings and theme review
 
