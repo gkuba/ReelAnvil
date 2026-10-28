@@ -129,6 +129,14 @@ func localRequest(next http.Handler) http.Handler {
 				return
 			}
 			origin := r.Header.Get("Origin")
+			// Browsers can serialize an opaque initiator as the Origin value
+			// "null". Accept that serialization only when
+			// browser Fetch Metadata independently says same-origin. Other opaque
+			// Origin values remain rejected; an absent Origin still uses Referer
+			// validation and the existing same-origin metadata policy.
+			if origin == "null" && fetchSite == "same-origin" {
+				origin = ""
+			}
 			if origin == "" {
 				origin = r.Header.Get("Referer")
 			}
@@ -158,6 +166,27 @@ func Doctor() error {
 	fmt.Println("Configuration:", filepath.Join(wd, "settings/config.json"))
 	return nil
 }
+func (s *Server) handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", s.page)
+	mux.HandleFunc("/settings", s.settings)
+	mux.HandleFunc("/settings/themes", s.page)
+	mux.HandleFunc("/settings/connectors", s.page)
+	mux.HandleFunc("/settings/storage", s.page)
+	mux.HandleFunc("/themes/refresh", s.refreshThemes)
+	mux.HandleFunc("/themes/duplicate", s.duplicateTheme)
+	mux.HandleFunc("/themes/save", s.saveTheme)
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "method not allowed", 405)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"status":"ok"}`)
+	})
+	return localRequest(mux)
+}
+
 func Serve() error {
 	if err := paths(); err != nil {
 		return err
@@ -180,23 +209,6 @@ func Serve() error {
 	if !validTheme(s.cfg.Theme) && s.themes[s.cfg.Theme].ID == "" {
 		s.cfg.Theme = "aurora"
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.page)
-	mux.HandleFunc("/settings", s.settings)
-	mux.HandleFunc("/settings/themes", s.page)
-	mux.HandleFunc("/settings/connectors", s.page)
-	mux.HandleFunc("/settings/storage", s.page)
-	mux.HandleFunc("/themes/refresh", s.refreshThemes)
-	mux.HandleFunc("/themes/duplicate", s.duplicateTheme)
-	mux.HandleFunc("/themes/save", s.saveTheme)
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "method not allowed", 405)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"status":"ok"}`)
-	})
 	address := os.Getenv("REELANVIL_ADDR")
 	if address == "" {
 		address = "127.0.0.1:8080"
@@ -209,7 +221,7 @@ func Serve() error {
 		return err
 	}
 	defer listener.Close()
-	server := &http.Server{Handler: localRequest(mux), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	s.log.Println("server listening", address)
 	fmt.Println("ReelAnvil mockup: http://" + address)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

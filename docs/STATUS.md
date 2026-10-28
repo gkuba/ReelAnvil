@@ -1,12 +1,12 @@
 # ReelAnvil — Project Status
 
 **Last reviewed:** 2026-10-28
-**Phase:** Build 0.7 theme and security hardening accepted for the `dev` checkpoint
-**Source baseline:** Build 0.7 applied to clean `dev` commit `dcc790d16b2131f8a5065280f9aac6742b27218a`; supplied post-patch hashes matched before local security hardening. Go tests, vet, and build pass with the added loopback/request guards. The maintainer confirmed the build loads and requested the checkpoint update; remaining browser checks are listed below.
+**Phase:** Build 0.7.1 settings POST regression fix; maintainer validated, ready for Chat source validation
+**Source baseline:** Clean local `dev` checkpoint `0590e3630e80898e53cda1c7e6d4d63ae692c7f5`. The B0.7 browser regression was reproduced: a same-origin browser POST arrived with `Origin: null`, `Sec-Fetch-Site: same-origin`, and no Referer, then was rejected. The candidate permits this exact combination while retaining rejection of cross-site metadata and mismatched origins. Automated checks and real-browser settings workflows pass; maintainer confirmed the fix works.
 **Repository URL / branch:** `git@github.com:gkuba/ReelAnvil.git` / `dev`.
-**Latest successful local build:** Build 0.7 development binary; exact binary hash and evidence are in `docs/BUILD_HISTORY.md` and `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.7 Validation/`.
-**Library synchronization checkpoint:** Build 0.7 is the accepted `dev` checkpoint being synchronized to GitHub and Chat. The handoff records the exact pushed commit.
-**Security boundary:** B0.7 refuses non-loopback listeners, validates local Host/origin metadata, caps POST bodies, and adds timeouts/response headers. Authentication is not implemented; network exposure remains disabled. See `SECURITY_REVIEW.md` in the B0.7 validation folder.
+**Latest successful local build:** Build 0.7.1 candidate binary at `bin/Release/reelanvil`; SHA-256 and test/browser evidence are recorded in `docs/BUILD_HISTORY.md` and `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.7.1 Validation/`.
+**Library synchronization checkpoint:** B0.7 remains the last pushed `dev` checkpoint until the accepted B0.7.1 source checkpoint is pushed and packaged for Chat.
+**Security boundary:** B0.7.1 retains loopback-only binding, local Host checks, body limits, timeouts, and response headers. A `null` Origin is accepted only with `Sec-Fetch-Site: same-origin`; authentication is still absent, so network exposure remains disabled. See the B0.7 and B0.7.1 validation records.
 
 ## Confirmed decisions
 - Public, self-hosted, Linux-first (Debian 13) Go application with distinct server and media worker processes.
@@ -33,6 +33,11 @@
 - [x] Apply Build 0.7 patch and verify all supplied post-patch hashes.
 - [x] Add and unit-test loopback-only binding, local Host and cross-origin POST guards, body size cap, timeouts, and security headers.
 - [x] Maintainer confirmed B0.7 loads and requested the checkpoint update.
+- [x] Reproduced the B0.7 Apply Theme and Duplicate Theme POST failures in a real browser and recorded only header classifications.
+- [x] Apply the B0.7.1 opaque-Origin exception, limited to `Origin: null` plus same-origin Fetch Metadata; preserve cross-origin rejection.
+- [x] Exercise settings and theme POST routes through the shared production router in automated success and rejection tests.
+- [x] Run B0.7.1 automated checks and local browser workflows; restore the pre-test runtime settings.
+- [x] Maintainer validated B0.7.1 candidate; checkpoint and Chat handoff are the next actions.
 - [ ] Complete remaining B0.7 theme-cycle, custom-theme, flyout-state, and narrow-layout checks.
 - [ ] Complete authentication and session-bound CSRF design before any future non-loopback deployment.
 - [ ] Remote deployment remains unauthorized; do not deploy without explicit approval.
@@ -43,12 +48,13 @@
 ## Blockers / open items
 - Build 0.7 remains a local-only mockup; it has no SQLite, authentication, AI/media integrations, jobs, or worker. Local request checks are defense-in-depth and do not replace authentication.
 - Formal penetration testing and external dependency/SAST/secret scanning have not been performed; security scanners were unavailable in the local environment.
+- Browser build validation used alternate port `127.0.0.1:18089`; ports 18080 and 18085 were occupied, so those ports are covered by handler-level tests rather than this candidate's live-browser run.
 - Broader theme recovery, backup corruption, repair-lockout, interrupted-write, permissions, and malformed-config permutations remain deferred pre-release checks; see [`PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`](PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md).
 - No remote deployment or production validation has been authorized or performed.
 - Final copyright holder, third-party notices, vetted image digests and release packaging tests pending.
 
 ## Next verified milestone
-Chat validation of the pushed B0.7 source checkpoint. Complete remaining browser and recovery checks before release; remote deployment remains unauthorized. Stop the local preview with Ctrl+C.
+Chat validates the pushed B0.7.1 source checkpoint against the handoff commit and checksum. Complete remaining recovery checks before release; remote deployment remains unauthorized. The local preview is at `http://127.0.0.1:18089/settings/themes` and stops with Ctrl+C.
 
 ## Approved deferred Campaigns workflow (post-Build 0.6)
 
