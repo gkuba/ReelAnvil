@@ -2,7 +2,7 @@
 
 **ReelAnvil** is a planned open-source, self-hosted application for turning authorized long-form video into reviewable short-form clips.
 
-> **Project status:** Early planning and repository initialization. ReelAnvil is not yet available as a working application. Features and installation instructions below describe the intended direction, not completed functionality.
+> **Project status:** Build 0.9 is a local development prototype, not a supported release. Campaign records can be added and tracked manually; most media, AI, worker, and platform integrations remain planned.
 
 ## The idea
 
@@ -26,6 +26,12 @@ The planned workflow is:
 - A responsive, dark-themed interface inspired by Nordic-industrial design
 - Optional workflow organization and performance tracking without guaranteed-earnings claims
 
+## Current prototype
+
+The current development build provides the themed local web interface, persistent SQLite setup, campaign records and tracking, and per-theme icon choices. Content Rewards and Vyro discovery are explicitly unavailable: ReelAnvil does not scrape sites, log in, apply to campaigns, find social posts, or submit content. Jobs, media processing, AI, and worker pages remain placeholders.
+
+The server is unauthenticated and **must remain bound to loopback**. Do not expose it through a LAN, reverse proxy, tunnel, or public address.
+
 ## Intended technical direction
 
 ReelAnvil is being designed primarily for **Debian 13 Linux**, with a native **Go** application, separate web-server and media-worker processes, and **SQLite** for persistent state. Planned media and AI integrations include FFmpeg, yt-dlp, faster-whisper, and Ollama. Where containers are needed, the intention is to use upstream images rather than distribute custom images or bundled models.
@@ -34,7 +40,14 @@ These are design targets and have **not** yet been validated as a completed depl
 
 ## Getting started
 
-There is no supported installation or runnable release yet. This repository is being established for source development and project documentation.
+There is no supported installation or release yet. To run the local development prototype after building it, use:
+
+```sh
+cd bin/Release
+./reelanvil serve
+```
+
+Open <http://127.0.0.1:8080> and stop the server with **Ctrl+C**. See [development and test instructions](docs/DEVELOPMENT.md) for the Go checks, local database behavior, and review steps.
 
 For current plans and decisions, see:
 

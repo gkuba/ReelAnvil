@@ -1,11 +1,11 @@
 # ReelAnvil — Project Status
 
 **Last reviewed:** 2026-10-28
-**Phase:** Build 0.8 SQLite persistence foundation; locally validated and pushed for Chat checkpoint
-**Source baseline:** B0.7.1 commit `80dfb3c2502c2f2d17425df1c70ab26d19344de0`; handoff baseline and GitHub `dev` matched before B0.8 changes. B0.7.1 opaque-Origin regression fix was maintainer validated and pushed.
+**Phase:** Build 0.9 campaigns and branding; locally validated dev checkpoint
+**Source baseline:** Build 0.9 handoff baseline `777572e294b155aaabaf136b85e289f694bed1f6` on `dev`; local checkout was clean at this SHA before implementation.
 **Repository URL / branch:** `git@github.com:gkuba/ReelAnvil.git` / `dev`.
-**Latest successful local build:** Build 0.8 SQLite candidate at `bin/Release/reelanvil`; final binary SHA-256 and checks are in `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.8 Validation/`.
-**Library synchronization checkpoint:** B0.8 implementation commit `ee06ec3c345db1eea1946deb08f5a0edac079ded` is pushed to `dev`; Chat handoff includes its exact source tree and validation evidence.
+**Latest successful local build:** Build 0.9 candidate at `bin/Release/reelanvil`; final binary SHA-256 is recorded in the Chat handoff and validation evidence at `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.9 Validation/`.
+**Library synchronization checkpoint:** Build 0.9 checkpoint commit and push verification are recorded in its Chat handoff package.
 **Security boundary:** B0.7.1 retains loopback-only binding, local Host checks, body limits, timeouts, and response headers. A `null` Origin is accepted only with `Sec-Fetch-Site: same-origin`; authentication is still absent, so network exposure remains disabled. See the B0.7 and B0.7.1 validation records.
 
 ## Confirmed decisions
@@ -47,6 +47,11 @@
 - [x] Complete B0.8 database setup, failure-mode, persistence, and executable restart validation.
 - [x] Complete B0.8 security/dependency source review, race tests, vet, module verification, executable build, and disposable database restart/failure validation.
 - [x] Complete local B0.8 database validation and prepare the verified source checkpoint for Chat.
+- [x] Verify the Build 0.9 checkout was clean at its supplied baseline; preserve pre-change source and runtime snapshots.
+- [x] Implement the SQLite v1-to-v2 campaign migration, manual records, tracked status/notes, URL validation, and source-refresh preservation boundary.
+- [x] Implement the Campaigns UI, data-driven Overview, local branding assets, and per-theme icon settings.
+- [x] Finish disposable-runtime migration and browser checks at desktop and narrow widths; keep the existing `bin/Release` user database untouched during candidate validation.
+- [x] After successful validation, checkpoint Build 0.9 to `dev` and prepare the exact source ZIP and handoff package for Chat.
 
 ## Blockers / open items
 - The pushed B0.7.1 checkpoint remains a local-only mockup without SQLite, authentication, AI/media integrations, jobs, or worker. The local B0.8 candidate adds only a minimal SQLite foundation. Local request checks are defense-in-depth and do not replace authentication.
@@ -55,9 +60,10 @@
 - Broader theme recovery, backup corruption, repair-lockout, interrupted-write, permissions, and malformed-config permutations remain deferred pre-release checks; see [`PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`](PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md).
 - No remote deployment or production validation has been authorized or performed.
 - Final copyright holder, third-party notices, vetted image digests and release packaging tests pending.
+- Build 0.9 adds no authentication or external connectors; campaign discovery remains unavailable and campaign URLs are user-provided HTTPS values. No remote deployment is authorized.
 
 ## Next verified milestone
-Chat validates the pushed B0.8 source checkpoint against its exact commit ZIP and manifest. Start the local candidate from `/home/katala/Projects/ReelAnvil/bin/Release` with `./reelanvil serve`; the database is created at `data/reelanvil.db`. Stop with Ctrl+C. No remote deployment is authorized.
+Complete Build 0.9 disposable database/browser validation, then prepare the verified `dev` checkpoint and single Chat package ZIP. To run the local prototype, use `cd /home/katala/Projects/ReelAnvil/bin/Release && ./reelanvil serve`, open <http://127.0.0.1:8080>, and stop with Ctrl+C. Startup upgrades schema v1 transactionally to v2. No remote deployment is authorized.
 
 ## Approved deferred Campaigns workflow (post-Build 0.6)
 

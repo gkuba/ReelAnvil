@@ -300,10 +300,24 @@ func (s *Server) duplicateTheme(w http.ResponseWriter, r *http.Request) {
 	t := Theme{ID: id, Name: name + " (Copy)", Base: base, Colors: c}
 	next := cloneThemes(s.themes)
 	next[id] = t
+	nextSettings := s.cfg
+	nextSettings.ThemeIcons = cloneThemeIcons(s.cfg.ThemeIcons)
+	variant := nextSettings.ThemeIcons[source]
+	if !validIconVariant(variant) {
+		variant = "blue-violet"
+	}
+	nextSettings.ThemeIcons[id] = variant
+	nextSettings.Version = 2
+	if err := save(s.cfgPath, nextSettings); err != nil {
+		s.log.Println("custom theme icon default save failed:", err)
+		http.Error(w, "could not save the new theme icon default", http.StatusInternalServerError)
+		return
+	}
 	if err := s.persistThemes(next); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	s.cfg = nextSettings
 	http.Redirect(w, r, "/settings/themes?edit="+id+"&message=Theme+duplicated", 303)
 }
 func cloneThemes(m map[string]Theme) map[string]Theme {

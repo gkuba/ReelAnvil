@@ -66,7 +66,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err = tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v); err != nil {
 		return err
 	}
-	if v > 1 {
+	if v > 2 {
 		return fmt.Errorf("unsupported database schema version %d", v)
 	}
 	if v == 0 {
@@ -79,8 +79,59 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		if _, err = tx.ExecContext(ctx, "PRAGMA user_version=1"); err != nil {
 			return err
 		}
+		v = 1
+	}
+	if v == 1 {
+		if err = migrateCampaignsV2(ctx, tx); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, "PRAGMA user_version=2"); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
+}
+
+func migrateCampaignsV2(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE campaign_sources (
+			id TEXT PRIMARY KEY,
+			platform TEXT NOT NULL CHECK(platform IN ('content-rewards','vyro')),
+			external_id TEXT,
+			canonical_url TEXT NOT NULL,
+			title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 160),
+			requirements TEXT NOT NULL DEFAULT '',
+			payout_cents INTEGER CHECK(payout_cents IS NULL OR payout_cents >= 0),
+			budget_cents INTEGER CHECK(budget_cents IS NULL OR budget_cents >= 0),
+			deadline_utc TEXT,
+			platform_status TEXT NOT NULL DEFAULT '',
+			source_kind TEXT NOT NULL CHECK(source_kind IN ('discovered','manual')),
+			provenance TEXT NOT NULL,
+			view_url TEXT NOT NULL DEFAULT '',
+			apply_url TEXT NOT NULL DEFAULT '',
+			submit_url TEXT NOT NULL DEFAULT '',
+			verified_at TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			UNIQUE(platform, canonical_url)
+		)`,
+		`CREATE UNIQUE INDEX campaign_sources_external_id ON campaign_sources(platform, external_id) WHERE external_id IS NOT NULL AND external_id <> ''`,
+		`CREATE TABLE tracked_campaigns (
+			campaign_id TEXT PRIMARY KEY REFERENCES campaign_sources(id) ON DELETE CASCADE,
+			user_status TEXT NOT NULL CHECK(user_status IN ('Interested','Applied','Active','Completed','Archived')),
+			notes TEXT NOT NULL DEFAULT '',
+			is_tracked INTEGER NOT NULL DEFAULT 1 CHECK(is_tracked IN (0,1)),
+			tracked_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX tracked_campaigns_status ON tracked_campaigns(user_status, tracked_at)`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("campaign migration: %w", err)
+		}
+	}
+	return nil
 }
 
 func validateSchema(ctx context.Context, tx *sql.Tx) error {

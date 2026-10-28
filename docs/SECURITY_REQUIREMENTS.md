@@ -33,3 +33,11 @@ Security applies even to loopback/internal deployments. The current UI prototype
 - SQLite holds nonsecret application records only. Never persist OAuth tokens, API keys, session cookies, or encryption keys in plaintext SQLite, JSON, logs, diagnostics, handoff archives, or Git.
 - Before implementing connectors, require encrypted credential storage with separate key management and scoped token lifecycle.
 - Scan for secrets before pushes and in CI; .gitignore is not a substitute.
+
+## Build 0.9 campaign and branding boundaries
+
+- Campaign URLs and optional View / Apply / Submit targets accept HTTPS only, reject URL user information and nonstandard ports, and are not fetched by the server. External actions use validated URLs supplied by the user or a future verified provider and open with `noopener noreferrer`.
+- Campaign and requirements text is rendered through `html/template`; source values and local user notes are validated and bounded. Campaign POST routes retain the common same-origin checks, 1 MiB body cap, and strict POST method handling.
+- Discovery adapters have an interface boundary, but no Content Rewards or Vyro endpoint is called until its public API and permitted use are confirmed. Build 0.9 performs no scraping, login, OAuth, automatic application, post search, or content submission.
+- Local branding assets are embedded in the executable. The content security policy explicitly allows same-origin images and continues to deny other default sources.
+- Automated checks cover unsafe URL schemes/user info, cross-origin campaign mutations, method rejection, HTML escaping, schema upgrade, deduplication, untracking, and preservation of local notes/status during discovery updates.

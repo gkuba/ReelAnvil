@@ -10,7 +10,7 @@ go vet ./...
 ./scripts/build-dev.sh
 ```
 
-The development script atomically replaces only `bin/Release/reelanvil` and preserves runtime `settings/`, `data/`, `logs/`, and `temp/` directories. The SQLite database lives at `bin/Release/data/reelanvil.db` when started from that directory; never copy a live database file as a backup because WAL may contain committed changes. Stop the server before a simple file backup; an online backup workflow is not implemented yet. Do not run `go run ./reelanvil`, `go test ./...`, or `go vet ./...` from `bin/Release`; those commands operate on Go source packages, not the compiled executable. The `dist/` directory is reserved for explicitly approved release builds.
+The development script atomically replaces only `bin/Release/reelanvil` and preserves runtime `settings/`, `data/`, `logs/`, and `temp/` directories. The SQLite database lives at `bin/Release/data/reelanvil.db` when started from that directory; current schema version is 2. On startup the app transactionally upgrades a version 1 database and preserves `storage_probe`; future versions are refused. Never copy a live database file as a backup because WAL may contain committed changes. Stop the server before a simple file backup; an online backup workflow is not implemented yet. Do not run `go run ./reelanvil`, `go test ./...`, or `go vet ./...` from `bin/Release`; those commands operate on Go source packages, not the compiled executable. The `dist/` directory is reserved for explicitly approved release builds.
 
 ## Run and stop the local prototype
 
@@ -59,6 +59,15 @@ Keep the terminal open while using the prototype. Stop it with **Ctrl+C**. This 
 - Check preview order (Background, Sidebar, Panels / Tiles, Primary, Secondary, Tertiary, Quaternary) separately from the seven editable persisted fields.
 - Verify theme custom colors, active navigation contrast, and normal/visited/hover/focus/selected flyout links.
 - Security guard tests confirm network bind addresses are rejected, non-local Host headers and cross-origin browser POSTs are blocked, POST request bodies are capped, and common headers are present. This remains unauthenticated local software; do not bypass the loopback bind restriction or expose it to another host.
+
+### Build 0.9 campaign and branding review
+
+- Visit Overview and Campaigns at desktop and narrow widths. Check the mountain header, Available / Tracked / Ending Soon counts, empty states, manual campaign entry, filters, sorting, and tracked table.
+- Add a disposable campaign with a valid HTTPS URL, optional amounts/deadline, requirements, and notes. Confirm it starts as Interested; update status and details; untrack and confirm the record returns to Available with its notes/status retained; track it again and confirm prior metadata remains.
+- Confirm unverified campaign discovery is clearly unavailable for Content Rewards and Vyro. No platform is contacted. Check user text is escaped, unsafe URL schemes are rejected, and View/Apply/Submit links only appear for supplied HTTPS targets.
+- In Settings → Themes, set a different icon for a built-in theme and a custom theme, apply each theme, and confirm the sidebar icon and browser favicon follow the active theme across refresh and restart.
+- Confirm an existing schema-v1 database starts successfully as schema v2 with its `storage_probe` retained. Test future schema rejection using a disposable database only.
+- This candidate remains unauthenticated and loopback-only. No OAuth, discovery API, applications, post search, submission, jobs, media processing, or remote deployment is included.
 
 ### Build 0.5 Settings and theme review
 

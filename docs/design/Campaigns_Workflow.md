@@ -1,6 +1,6 @@
 # Campaign discovery, tracking and fulfillment — deferred design
 
-**Status:** Approved product direction for a future integration milestone. Not implemented in Build 0.6. Actual API capabilities and permissions must be verified for each service before implementation.
+**Status:** Approved product direction. Build 0.9 implements local campaign records, manual tracking, and source/user-state separation. Platform discovery, credentials, applications, social matching, and fulfillment remain unimplemented. Verify each provider's API and permissions before integration.
 
 ## Discovery versus tracking
 
@@ -8,6 +8,8 @@
 - Users can select one or multiple campaigns and explicitly add them to a **local tracked list**. Discovery alone never enrolls a campaign in tracking.
 - Only tracked campaigns participate in post matching or fulfillment checks. Untracking a campaign changes ReelAnvil's local tracking state only; it does not cancel or delete the external campaign.
 - Track external campaign identifiers, requirements, required platforms and post types, start/end/deadline, budgets and remaining budget when available, submission status, and local-to-external associations. Treat unavailable values as unknown rather than inventing them.
+- Build 0.9 currently supports manual HTTPS campaign URLs for Content Rewards and Vyro. No public discovery endpoint has been verified, so the Available view reports discovery unavailable and makes no network calls. Manually adding a campaign starts local tracking as Interested; users can edit, untrack, and later re-track it. Untracking preserves the source and prior local notes/status. Amounts and deadlines remain unknown unless entered.
+- Source-owned campaign fields and local tracked status/notes are stored in separate SQLite tables. Future discovery refreshes update source fields without replacing local status or notes. Canonical HTTPS URLs and platform/external IDs prevent duplicate source records.
 
 ## Publishing and post matching
 

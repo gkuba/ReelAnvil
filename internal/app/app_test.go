@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log"
 	"net/http"
@@ -9,14 +10,17 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gkuba/ReelAnvil/internal/store"
 )
 
 func TestSettingsRoundTrip(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	original := Settings{Version: 1, InstanceName: "Test", Theme: "aurora"}
+	original := Settings{Version: 2, InstanceName: "Test", Theme: "aurora", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "blue-violet", "tomorrow-night": "blue-violet", "nocturne": "blue-violet", "foundry": "blue-violet"}}
 	if err := save(p, original); err != nil {
 		t.Fatal(err)
 	}
@@ -24,8 +28,135 @@ func TestSettingsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded != original {
+	if !reflect.DeepEqual(loaded, original) {
 		t.Fatalf("got %+v, want %+v", loaded, original)
+	}
+}
+
+func TestSettingsVersionOneMigratesThemeIcons(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(p, []byte(`{"version":1,"instance_name":"Kept","theme":"aurora"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Version != 2 || c.InstanceName != "Kept" || c.Theme != "aurora" || c.ThemeIcons["aurora"] != "blue-violet" {
+		t.Fatalf("unexpected migrated settings: %+v", c)
+	}
+}
+
+func TestCampaignPagesManualTrackingEscapingAndFilters(t *testing.T) {
+	s := securityTestServer(t)
+	ctx := context.Background()
+	_, created, err := s.store.AddManualCampaign(ctx, store.CampaignInput{Platform: "vyro", URL: "https://example.com/campaign?utm_source=test", Title: "<script>alert(1)</script>", Requirements: "Keep this safe"})
+	if err != nil || !created {
+		t.Fatalf("add campaign: created=%v err=%v", created, err)
+	}
+	h := s.handler()
+	for _, path := range []string{"/", "/campaigns?view=tracked", "/campaigns?view=available", "/campaigns?view=tracked&platform=vyro&sort=deadline"} {
+		r := httptest.NewRequest(http.MethodGet, path, nil)
+		r.Host = "127.0.0.1:8080"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET %s = %d, body=%s", path, w.Code, w.Body.String())
+		}
+		if strings.Contains(w.Body.String(), "<script>alert(1)</script>") {
+			t.Fatalf("unescaped campaign metadata on %s", path)
+		}
+		if strings.Contains(path, "view=tracked") && !strings.Contains(w.Body.String(), "&lt;script&gt;alert(1)&lt;/script&gt;") {
+			t.Fatalf("campaign title not rendered safely on %s", path)
+		}
+		if strings.Contains(w.Body.String(), "href=\"javascript:") {
+			t.Fatalf("unsafe external link rendered on %s", path)
+		}
+	}
+	all, err := s.store.ListCampaigns(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 || !all[0].Tracked || all[0].UserStatus != "Interested" {
+		t.Fatalf("manual campaign not tracked: %+v", all)
+	}
+	if err = s.store.TrackCampaign(ctx, all[0].ID, "Active", "Local notes survive refresh"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.store.UpsertDiscoveredCampaign(ctx, store.Campaign{Platform: "vyro", ExternalID: "stable-1", URL: "https://example.com/campaign", Title: "Updated source title", Provenance: "verified public source"}); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := s.store.CampaignByID(ctx, all[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.UserStatus != "Active" || updated.Notes != "Local notes survive refresh" || updated.Title != "Updated source title" {
+		t.Fatalf("campaign refresh lost local or source data: %+v", updated)
+	}
+}
+
+func TestThemeIconsPersistPerThemeAndServeFavicon(t *testing.T) {
+	s := securityTestServer(t)
+	h := s.handler()
+	w := postForm(t, h, "127.0.0.1:8080", "/themes/icon", "theme_key=aurora&icon_variant=amethyst", "same-origin", "http://127.0.0.1:8080", "")
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("icon save status=%d body=%s", w.Code, w.Body.String())
+	}
+	loaded, err := load(s.cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.ThemeIcons["aurora"] != "amethyst" || loaded.ThemeIcons["review-theme"] != "blue-violet" {
+		t.Fatalf("icon selection not persisted with fallback: %#v", loaded.ThemeIcons)
+	}
+	w = httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/settings/themes?icon_theme=aurora", nil)
+	r.Host = "127.0.0.1:8080"
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Theme icon") || !strings.Contains(w.Body.String(), "/assets/branding/icon-amethyst-64.png") || !strings.Contains(w.Body.String(), "Molten Orange") {
+		t.Fatalf("theme icon settings did not render: %d", w.Code)
+	}
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
+	r.Host = "127.0.0.1:8080"
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/vnd.microsoft.icon" || !bytes.HasPrefix(w.Body.Bytes(), []byte{0, 0, 1, 0}) {
+		t.Fatalf("favicon response invalid: %d %q", w.Code, w.Header().Get("Content-Type"))
+	}
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest(http.MethodGet, "/assets/branding/icon-amethyst-16.png", nil)
+	r.Host = "127.0.0.1:8080"
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("local icon response invalid: %d %q", w.Code, w.Header().Get("Content-Type"))
+	}
+}
+
+func TestCampaignPostRejectsCrossOriginAndMethods(t *testing.T) {
+	s := securityTestServer(t)
+	h := s.handler()
+	r := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8080/campaigns/add", strings.NewReader("platform=vyro&url=https%3A%2F%2Fexample.com&title=Test"))
+	r.Host = "127.0.0.1:8080"
+	r.Header.Set("Origin", "https://attacker.example")
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("cross-origin campaign POST status=%d", w.Code)
+	}
+	all, err := s.store.ListCampaigns(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 0 {
+		t.Fatalf("cross-origin request created campaign: %+v", all)
+	}
+	r = httptest.NewRequest(http.MethodDelete, "http://127.0.0.1:8080/campaigns/add", nil)
+	r.Host = "127.0.0.1:8080"
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("DELETE campaign add status=%d", w.Code)
 	}
 }
 
@@ -66,7 +197,7 @@ func TestLocalRequestRejectsForeignHostAndOrigin(t *testing.T) {
 			if w.Code != tc.want {
 				t.Fatalf("status = %d, want %d", w.Code, tc.want)
 			}
-			if w.Header().Get("X-Content-Type-Options") != "nosniff" || w.Header().Get("X-Frame-Options") != "DENY" || w.Header().Get("Content-Security-Policy") == "" {
+			if w.Header().Get("X-Content-Type-Options") != "nosniff" || w.Header().Get("X-Frame-Options") != "DENY" || !strings.Contains(w.Header().Get("Content-Security-Policy"), "img-src 'self'") {
 				t.Fatal("security headers missing")
 			}
 		})
@@ -81,6 +212,65 @@ func TestLocalRequestRejectsForeignHostAndOrigin(t *testing.T) {
 			t.Fatalf("status = %d, want %d", w.Code, http.StatusForbidden)
 		}
 	})
+}
+
+func TestCampaignMutationRoutesRejectCrossOriginPosts(t *testing.T) {
+	routes := []struct{ path, body string }{
+		{"/campaigns/add", "platform=vyro&url=https%3A%2F%2Fexample.com&title=Probe"},
+		{"/campaigns/track", "id=missing"},
+		{"/campaigns/untrack", "id=missing"},
+		{"/campaigns/status", "id=missing&status=Active"},
+		{"/campaigns/update", "id=missing&platform=vyro&url=https%3A%2F%2Fexample.com&title=Probe&status=Active"},
+		{"/themes/icon", "theme_key=aurora&icon_variant=amethyst"},
+	}
+	for _, route := range routes {
+		t.Run(route.path, func(t *testing.T) {
+			s := securityTestServer(t)
+			before, err := s.store.ListCampaigns(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			w := postForm(t, s.handler(), "127.0.0.1:18080", route.path, route.body, "cross-site", "http://evil.example", "")
+			if w.Code != http.StatusForbidden {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+			}
+			after, err := s.store.ListCampaigns(context.Background())
+			if err != nil || len(after) != len(before) {
+				t.Fatalf("rejected request mutated campaign database: before=%+v after=%+v err=%v", before, after, err)
+			}
+		})
+	}
+}
+
+func TestCampaignMutationRoutesRejectNonPostMethods(t *testing.T) {
+	for _, route := range []string{"/campaigns/add", "/campaigns/track", "/campaigns/untrack", "/campaigns/status", "/campaigns/update"} {
+		t.Run(route, func(t *testing.T) {
+			s := securityTestServer(t)
+			r := httptest.NewRequest(http.MethodGet, route, nil)
+			r.Host = "127.0.0.1:8080"
+			w := httptest.NewRecorder()
+			s.handler().ServeHTTP(w, r)
+			if w.Code != http.StatusMethodNotAllowed {
+				t.Fatalf("GET %s = %d", route, w.Code)
+			}
+		})
+	}
+}
+
+func TestEndingSoonUsesCalendarDatesAndKnownDeadlinesOnly(t *testing.T) {
+	now := time.Date(2026, 10, 28, 19, 0, 0, 0, time.FixedZone("local", -6*60*60))
+	if !deadlineWithinSevenDays("2026-10-28", now) {
+		t.Fatal("today's calendar deadline should count as ending soon")
+	}
+	if !deadlineWithinSevenDays("2026-11-04", now) {
+		t.Fatal("deadline on the seventh day should count")
+	}
+	if deadlineWithinSevenDays("2026-11-05", now) {
+		t.Fatal("deadline beyond seven days counted")
+	}
+	if deadlineWithinSevenDays("unknown", now) {
+		t.Fatal("invalid deadline counted")
+	}
 }
 
 func TestLocalRequestCapsPostBody(t *testing.T) {
@@ -112,7 +302,7 @@ func TestDefaults(t *testing.T) {
 }
 func TestUnsupportedVersion(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(p, []byte(`{"version":2}`), 0600); err != nil {
+	if err := os.WriteFile(p, []byte(`{"version":3}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := load(p); err == nil {
@@ -181,8 +371,18 @@ func securityTestServer(t *testing.T) *Server {
 	if err := save(cfgPath, defaults()); err != nil {
 		t.Fatal(err)
 	}
+	db, err := store.Open(filepath.Join(dir, "data", "reelanvil.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test campaign database: %v", err)
+		}
+	})
 	return &Server{
 		cfg: defaults(), cfgPath: cfgPath, started: time.Now(), log: log.New(io.Discard, "", 0), themes: themes,
+		store: db,
 	}
 }
 
