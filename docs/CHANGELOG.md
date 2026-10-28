@@ -13,5 +13,6 @@ This is the **single maintained project change log**. Record user-visible change
 - Build 0.8 development candidate adds an embedded SQLite persistence foundation with schema version 1 and a startup read/write probe; no workflow or secret tables are included.
 - Build 0.9 local candidate upgrades SQLite to schema version 2 for campaign source records and separate user tracking data; adds manual campaign tracking, filters, statuses, a campaign overview, and a local mountain banner. Content Rewards and Vyro discovery remain unavailable; no external campaign API, login, submission, or post search is used.
 - Build 0.9.1 local candidate corrects navigation hierarchy and shares one consistent responsive sidebar across pages. Settings → Themes places the global Blue-Violet / Amethyst / Molten Orange icon choice below the theme preview and saves it with the interface theme in one operation. Existing preferences migrate safely; fresh settings default to Dracula and Blue-Violet.
+- Build 0.9.1 layout follow-up applies consistent page-width and overflow handling across the prototype and Campaigns screens, including stacked mobile navigation at 650px and below.
 
 <!-- Add dated, verified user-facing changes here after successful builds; do not claim releases prematurely. -->
