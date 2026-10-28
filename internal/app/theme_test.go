@@ -30,8 +30,8 @@ func TestThemePaletteTokens(t *testing.T) {
 
 func TestSettingsNavigationUsesInlineSVGIcons(t *testing.T) {
 	source := pageTemplate.Tree.Root.String()
-	if got := strings.Count(source, `class="nav-icon"`); got != 5 {
-		t.Fatalf("settings nav has %d inline icons, want 5", got)
+	if got := strings.Count(source, `class="rail-icon"`); got < 15 {
+		t.Fatalf("navigation has %d inline icons, want at least 15", got)
 	}
 	if strings.Contains(source, "⚙ Settings") || strings.Contains(source, "☷ General") || strings.Contains(source, "◈ Themes") || strings.Contains(source, "♧ Connectors") || strings.Contains(source, "▣ Paths") {
 		t.Fatal("temporary Unicode settings icons remain")

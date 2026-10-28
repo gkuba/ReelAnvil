@@ -84,3 +84,15 @@ This is the **single maintained build history**. Append dated records here rathe
 - Deferred: broader theme recovery and failure-injection permutations remain pre-release checks. The maintainer approved this development checkpoint; it is committed and pushed to `dev` with the exact Chat package. No release merge, `dist/` package, or remote deployment was made.
 - Review server: run `cd /home/katala/Projects/ReelAnvil/bin/Release && REELANVIL_ADDR=127.0.0.1:18085 ./reelanvil serve`; open `http://127.0.0.1:18085/settings/themes`; stop with Ctrl+C. Active theme is Aurora; custom theme `Aurora Violet Refreshed` remains available.
 - Next: Chat validates the pushed source checkpoint.
+
+### 2026-10-27 — Build 0.6 navigation and visual refinement candidate
+
+- Handoff: `ReelAnvil_Build_0.6_Work_Handoff.zip`; archive SHA-256 `81c61897dab32d5cdf31f13480724c3ee0f6299ed55ed686200b287ad536925c`.
+- Baseline: `gkuba/ReelAnvil`, local `dev` and GitHub `dev`, `8a914fff66716c30fadbfe591edc500419040580`; worktree was clean. Patch dry-run passed and the four supplied post-patch file hashes/sizes matched before formatting.
+- Changes: persistent compact navigation rail, grouped navigation flyouts, SVG navigation/actions, glass-style panels, neutral Refresh/Cancel actions, and Dracula Lavender surface refinements. Campaign workflow was documented as deferred design only.
+- Runtime: exact custom theme `Aurora Violet Refreshed` (ID `aurora-copy`) removed from both `settings/themes.json` and its backup after saving complete pre-change snapshots. Active theme remained Aurora. Snapshots: `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.6 Validation/runtime-before/`.
+- Environment: Linux AMD64, Go `go1.27.1-X:nodwarf5`; `go test ./...`, `go vet ./...`, and `./scripts/build-dev.sh` passed. Development binary SHA-256 `6f65ea87e54717395906712a6e2581d7aee28929c9b9da32da50ced2c1b2c05d`.
+- Browser preview opened on Themes at `127.0.0.1:18085`. Visual inspection confirmed the page renders with Aurora, seven preview swatches, SVG actions, and Theme Manager empty state after profile removal. Full interactive rail/flyout, keyboard, narrow-screen, and theme-cycle checks remain for maintainer review because browser interaction controls were unavailable in this session.
+- Outcome: source hashes, formatting, automated tests, vet, and development build passed. Candidate awaits maintainer visual/functional review; no commit, push, deployment, release merge, or `dist/` package has occurred.
+- Review server: from `/home/katala/Projects/ReelAnvil/bin/Release`, run `REELANVIL_ADDR=127.0.0.1:18085 ./reelanvil serve`; open `http://127.0.0.1:18085/settings/themes`; stop with Ctrl+C. Active theme is Aurora; the custom review profile was removed as requested in the handoff.
+- Evidence and snapshots: `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.6 Validation/`. Next: maintainer review, then Chat validation after approval and push.

@@ -1,11 +1,11 @@
 # ReelAnvil — Project Status
 
 **Last reviewed:** 2026-10-27
-**Phase:** Build 0.5 Settings and theme refinement validated on `dev`
-**Source baseline:** Build 0.5 applied to accepted `dev` commit `8a14f0d0ac8fd8f5f8004f971d90c27b99da5582`; supplied post-patch hashes matched before inline SVG polish. Automated and local browser validation passed, and the maintainer approved the checkpoint for Chat validation.
+**Phase:** Build 0.6 navigation and visual refinement candidate under maintainer review
+**Source baseline:** Build 0.6 applied to clean `dev` commit `8a914fff66716c30fadbfe591edc500419040580`; supplied post-patch hashes matched before formatting. Automated tests, vet, and build passed; browser visual review is partial and interactive checks await maintainer review.
 **Repository URL / branch:** `git@github.com:gkuba/ReelAnvil.git` / `dev`.
-**Latest successful verified build:** Build 0.5 development binary built locally; exact binary hash and evidence are in `docs/BUILD_HISTORY.md` and `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.5 Validation/`.
-**Library synchronization checkpoint:** Build 0.5 is committed and pushed to `dev`; its exact commit and Chat handoff are in the matching deliverables package.
+**Latest successful local build:** Build 0.6 development binary; exact binary hash and evidence are in `docs/BUILD_HISTORY.md` and `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.6 Validation/`.
+**Library synchronization checkpoint:** Build 0.5 is the latest committed and pushed checkpoint. Build 0.6 awaits maintainer review before commit/push.
 
 ## Confirmed decisions
 - Public, self-hosted, Linux-first (Debian 13) Go application with distinct server and media worker processes.
@@ -27,6 +27,8 @@
 - [x] Maintainer review/acceptance of the B0.4 Theme Manager UI and behavior.
 - [x] Apply and locally validate the Build 0.5 Settings and theme refinements.
 - [x] Maintainer review/acceptance of the B0.5 Settings pages, theme migration, and responsive layout.
+- [x] Apply Build 0.6 patch, verify manifest hashes, run Go checks, and build the local candidate.
+- [ ] Maintainer review of B0.6 navigation/flyout interaction and responsive behavior.
 - [ ] Remote deployment remains unauthorized; do not deploy without explicit approval.
 - [x] Commit/push B0.4 to `dev` and prepare the exact commit ZIP/handoff for Chat.
 - [x] Commit/push B0.5 to `dev` and prepare the exact commit ZIP/handoff for Chat.
@@ -39,4 +41,8 @@
 - Final copyright holder, third-party notices, vetted image digests and release packaging tests pending.
 
 ## Next verified milestone
-Chat validation of the pushed B0.5 source checkpoint. Recovery fault-injection tests remain pre-release work; remote deployment remains unauthorized. Stop the local preview with Ctrl+C.
+Maintainer review of the local B0.6 candidate at `http://127.0.0.1:18085/settings/themes`. Recovery fault-injection tests remain pre-release work; remote deployment remains unauthorized. Stop the local preview with Ctrl+C.
+
+## Approved deferred Campaigns workflow (post-Build 0.6)
+
+Campaign discovery and local tracking are separate: multi-select available campaigns into a tracked list with requirements, dates and available budget information. Only tracked campaigns are eligible for post association. ReelAnvil-published posts associated with tracked campaigns capture post IDs/URLs automatically; manually published posts are searched only on explicit **Refresh Posts**. Present candidate thumbnails/links in the tracked listing and require explicit **Update Campaign** to submit fulfillment. See `docs/design/Campaigns_Workflow.md`. No integration is implemented by this design decision.
