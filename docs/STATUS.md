@@ -5,7 +5,7 @@
 **Source baseline:** Build 0.9.1 handoff baseline `011e75fd0666db7c9ddd5d94ec8ac8039cd3d3ed` on `dev`; local checkout was clean, and GitHub `dev` matched before implementation.
 **Repository URL / branch:** `git@github.com:gkuba/ReelAnvil.git` / `dev`.
 **Latest successful local build:** Build 0.9.1 candidate at `bin/Release/reelanvil`; test evidence is in `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.9.1 Validation/`.
-**Library synchronization checkpoint:** Build 0.9.1 commit `26789967d6d8fbf2e6b53f39c6477039ad89beff` is verified on local and GitHub `dev`.
+**Library synchronization checkpoint:** Build 0.9.1 is verified on local and GitHub `dev`; exact checkpoint SHA is recorded in the current Chat handoff package.
 **Security boundary:** B0.7.1 retains loopback-only binding, local Host checks, body limits, timeouts, and response headers. A `null` Origin is accepted only with `Sec-Fetch-Site: same-origin`; authentication is still absent, so network exposure remains disabled. See the B0.7 and B0.7.1 validation records.
 
 ## Confirmed decisions
