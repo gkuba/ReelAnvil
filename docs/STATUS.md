@@ -1,11 +1,11 @@
 # ReelAnvil — Project Status
 
 **Last reviewed:** 2026-10-28
-**Phase:** Build 0.8 SQLite persistence foundation; locally validated and prepared for Chat checkpoint
+**Phase:** Build 0.8 SQLite persistence foundation; locally validated and pushed for Chat checkpoint
 **Source baseline:** B0.7.1 commit `80dfb3c2502c2f2d17425df1c70ab26d19344de0`; handoff baseline and GitHub `dev` matched before B0.8 changes. B0.7.1 opaque-Origin regression fix was maintainer validated and pushed.
 **Repository URL / branch:** `git@github.com:gkuba/ReelAnvil.git` / `dev`.
 **Latest successful local build:** Build 0.8 SQLite candidate at `bin/Release/reelanvil`; SHA-256 `e1146986d168a88f1115496fa08b5e8a7a987f34a7cab570949de452460343d5`. Checks and disposable executable restart evidence are recorded in `docs/BUILD_HISTORY.md` and `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.8 Validation/`.
-**Library synchronization checkpoint:** B0.7.1 `80dfb3c2502c2f2d17425df1c70ab26d19344de0` is the last pushed `dev` checkpoint; B0.8 local validation passed and is being checkpointed for Chat verification.
+**Library synchronization checkpoint:** B0.8 implementation commit `ee06ec3c345db1eea1946deb08f5a0edac079ded` is pushed to `dev`; Chat handoff includes its exact source tree and validation evidence.
 **Security boundary:** B0.7.1 retains loopback-only binding, local Host checks, body limits, timeouts, and response headers. A `null` Origin is accepted only with `Sec-Fetch-Site: same-origin`; authentication is still absent, so network exposure remains disabled. See the B0.7 and B0.7.1 validation records.
 
 ## Confirmed decisions
