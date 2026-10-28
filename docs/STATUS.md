@@ -1,11 +1,11 @@
 # ReelAnvil — Project Status
 
 **Last reviewed:** 2026-10-28
-**Phase:** Build 0.9.1 layout consistency patch; local validation complete, checkpoint pending
+**Phase:** Build 0.9.1 layout consistency patch; validated and pushed to `dev`
 **Source baseline:** Build 0.9.1 handoff baseline `011e75fd0666db7c9ddd5d94ec8ac8039cd3d3ed` on `dev`; local checkout was clean, and GitHub `dev` matched before implementation.
 **Repository URL / branch:** `git@github.com:gkuba/ReelAnvil.git` / `dev`.
 **Latest successful local build:** Build 0.9.1 candidate at `bin/Release/reelanvil`; current validation evidence is in `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build Archives/Build 0.9.1 Layout Consistency Validation/`.
-**Library synchronization checkpoint:** Build 0.9.1 is verified on local and GitHub `dev`; exact checkpoint SHA is recorded in the current Chat handoff package.
+**Library synchronization checkpoint:** Build 0.9.1 layout patch is verified on local and GitHub `dev` at `7073dd1374dc7924edd2358184b29370ef51afea`; exact packaged checkpoint SHA is recorded in the current Chat handoff package.
 **Security boundary:** B0.7.1 retains loopback-only binding, local Host checks, body limits, timeouts, and response headers. A `null` Origin is accepted only with `Sec-Fetch-Site: same-origin`; authentication is still absent, so network exposure remains disabled. See the B0.7 and B0.7.1 validation records.
 
 ## Confirmed decisions
@@ -57,7 +57,7 @@
 - [x] Complete Go checks, disposable settings/runtime migration tests, browser navigation and save/refresh/restart checks; capture requested desktop and narrow screenshots.
 - [x] Apply the targeted Build 0.9.1 layout consistency patch and correct its mobile breakpoint specificity at 650px.
 - [x] Pass Go tests, race tests, vet, module verification, build, and 88 route/layout combinations across four widths and both rail states.
-- [ ] Commit/push the validated layout patch and prepare the exact Chat checkpoint package.
+- [x] Commit/push the validated layout patch and prepare the exact Chat checkpoint package.
 
 ## Blockers / open items
 - The pushed B0.7.1 checkpoint remains a local-only mockup without SQLite, authentication, AI/media integrations, jobs, or worker. The local B0.8 candidate adds only a minimal SQLite foundation. Local request checks are defense-in-depth and do not replace authentication.
@@ -69,7 +69,7 @@
 - Build 0.9 adds no authentication or external connectors; campaign discovery remains unavailable and campaign URLs are user-provided HTTPS values. No remote deployment is authorized.
 
 ## Next verified milestone
-The layout consistency patch is locally validated; its `dev` checkpoint and Chat package are pending. To run the local prototype, use `cd /home/katala/Projects/ReelAnvil/bin/Release && ./reelanvil serve`, open <http://127.0.0.1:8080>, and stop with Ctrl+C. Startup upgrades schema v1 transactionally to v2. No remote deployment is authorized.
+Build 0.9.1 layout consistency patch is locally validated and pushed to `dev` at `7073dd1374dc7924edd2358184b29370ef51afea`; Chat validation is next. The single Chat package ZIP is in `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/deliverables/`. To run the local prototype, use `cd /home/katala/Projects/ReelAnvil/bin/Release && ./reelanvil serve`, open <http://127.0.0.1:8080>, and stop with Ctrl+C. Startup upgrades schema v1 transactionally to v2. No remote deployment is authorized.
 
 ## Approved deferred Campaigns workflow (post-Build 0.6)
 
