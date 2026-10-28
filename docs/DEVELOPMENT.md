@@ -44,4 +44,13 @@ Keep the terminal open while using the prototype. Stop it with **Ctrl+C**. This 
 - Save a theme, refresh, and restart the server to confirm persistence.
 - This build remains a visual prototype. Media Library, Review, Campaigns, Services, and Jobs are placeholders; no media is processed and no production services are contacted.
 
+### Build 0.4 Theme Manager review
+
+- Confirm built-in themes remain selectable and read-only. Duplicate one, rename it, and edit all seven `#RRGGBB` values.
+- Check that editing updates the seven draft swatches without saving. Cancel should restore the previously saved values; Save Changes should persist the name and colors.
+- Select the custom theme in Interface theme, save, refresh the page, restart the server, and confirm the selection and custom values persist.
+- If checking manual configuration refresh, back up `settings/themes.json` and `.bak`, make a valid JSON edit, then use **Refresh Themes**. Verify the custom-theme list and editor display the refreshed values.
+- Do not run recovery/failure-injection cases during ordinary development. They are tracked in [`PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`](PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md) and must be completed before release. Invalid JSON can leave saving locked until repaired and refreshed.
+- Theme files are user data under `bin/Release/settings/`. Preserve both `themes.json` and `themes.json.bak` across builds. Do not expose the current prototype beyond loopback; it has no authentication or CSRF protection.
+
 Only Overview, Settings, Diagnostics, and the route shell exist in this prototype; most other sections are visual/navigation placeholders. It does not process media, connect external services, create jobs, or publish clips. Runtime settings and logs live under `bin/Release/settings/` and `bin/Release/logs/`. Removing those generated directories resets prototype settings and logs.

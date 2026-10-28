@@ -23,7 +23,7 @@ func TestThemePaletteTokens(t *testing.T) {
 			}
 		}
 	}
-	if !strings.Contains(source, "body.dracula-dark{--bg:#0b0c0e") {
+	if !strings.Contains(source, "body.dracula-dark{--bg:#101116") {
 		t.Error("Dracula background must be dark charcoal")
 	}
 }
