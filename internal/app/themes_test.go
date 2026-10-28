@@ -106,7 +106,7 @@ func TestSettingsPromptsToDuplicateWhenNoCustomThemes(t *testing.T) {
 		log:     log.New(io.Discard, "", 0),
 		themes:  map[string]Theme{},
 	}
-	r := httptest.NewRequest("GET", "/settings", nil)
+	r := httptest.NewRequest("GET", "/settings/themes", nil)
 	w := httptest.NewRecorder()
 	s.page(w, r)
 	if w.Code != 200 {

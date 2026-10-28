@@ -53,4 +53,13 @@ Keep the terminal open while using the prototype. Stop it with **Ctrl+C**. This 
 - Do not run recovery/failure-injection cases during ordinary development. They are tracked in [`PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`](PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md) and must be completed before release. Invalid JSON can leave saving locked until repaired and refreshed.
 - Theme files are user data under `bin/Release/settings/`. Preserve both `themes.json` and `themes.json.bak` across builds. Do not expose the current prototype beyond loopback; it has no authentication or CSRF protection.
 
+### Build 0.5 Settings and theme review
+
+- Visit General, Themes, Connectors, and Paths & Storage. Confirm the active settings link follows the current page, navigation uses the inline SVG icons, and all four routes render.
+- General should save the instance name without changing the selected theme. Themes should show Aurora, Dracula Classic, Dracula Lavender, Tomorrow Night, Nocturne, and Foundry; Tokyo Night is retired. Existing saved Tokyo Night selections load and migrate to Aurora, and custom themes with a Tokyo Night base inherit Aurora in memory.
+- Cycle all six built-ins and check the page palette and preview. Save a theme only if intentionally testing the setting; refresh themes and verify it does not modify instance/theme config. Existing custom themes should remain visible and editable.
+- Connector and storage inputs are disabled explanatory placeholders and must not submit or persist values.
+- Check the settings pages at desktop width and a narrow viewport. At 390 px, navigation should wrap, theme fields should use one column, and the page should not overflow horizontally; at desktop width, the custom color fields should use two columns.
+- Do not run theme recovery/failure-injection cases during ordinary development. They remain tracked in [`PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`](PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md).
+
 Only Overview, Settings, Diagnostics, and the route shell exist in this prototype; most other sections are visual/navigation placeholders. It does not process media, connect external services, create jobs, or publish clips. Runtime settings and logs live under `bin/Release/settings/` and `bin/Release/logs/`. Removing those generated directories resets prototype settings and logs.

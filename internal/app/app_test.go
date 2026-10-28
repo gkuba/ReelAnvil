@@ -9,7 +9,7 @@ import (
 
 func TestSettingsRoundTrip(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	original := Settings{Version: 1, InstanceName: "Test", Theme: "tokyo-night"}
+	original := Settings{Version: 1, InstanceName: "Test", Theme: "aurora"}
 	if err := save(p, original); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestUnsupportedVersion(t *testing.T) {
 }
 
 func TestThemePaletteAndLegacyMigration(t *testing.T) {
-	for _, theme := range []string{"aurora", "dracula-dark", "tomorrow-night", "tokyo-night", "nocturne", "foundry"} {
+	for _, theme := range []string{"aurora", "dracula-dark", "tomorrow-night", "dracula-lavender", "nocturne", "foundry"} {
 		if !validTheme(theme) {
 			t.Fatalf("missing theme %s", theme)
 		}
@@ -50,7 +50,7 @@ func TestThemePaletteAndLegacyMigration(t *testing.T) {
 			t.Fatalf("missing palette %s", theme)
 		}
 	}
-	for old, want := range map[string]string{"dark": "tomorrow-night", "slate": "tokyo-night", "pastel": "nocturne"} {
+	for old, want := range map[string]string{"dark": "tomorrow-night", "slate": "aurora", "pastel": "nocturne"} {
 		p := filepath.Join(t.TempDir(), "config.json")
 		if err := save(p, Settings{Version: 1, InstanceName: "Legacy", Theme: old}); err != nil {
 			t.Fatal(err)

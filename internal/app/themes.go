@@ -43,7 +43,7 @@ const themePath = "settings/themes.json"
 const themeBackup = "settings/themes.json.bak"
 
 func builtinOptions() []Theme {
-	return []Theme{{ID: "aurora", Name: "Aurora"}, {ID: "dracula-dark", Name: "Dracula Dark"}, {ID: "tomorrow-night", Name: "Tomorrow Night"}, {ID: "tokyo-night", Name: "Tokyo Night"}, {ID: "nocturne", Name: "Nocturne"}, {ID: "foundry", Name: "Foundry"}}
+	return []Theme{{ID: "aurora", Name: "Aurora"}, {ID: "dracula-dark", Name: "Dracula Classic"}, {ID: "dracula-lavender", Name: "Dracula Lavender"}, {ID: "tomorrow-night", Name: "Tomorrow Night"}, {ID: "nocturne", Name: "Nocturne"}, {ID: "foundry", Name: "Foundry"}}
 }
 func sortedThemes(m map[string]Theme) []Theme {
 	out := make([]Theme, 0, len(m))
@@ -63,6 +63,10 @@ func validateThemes(f themeFile) (map[string]Theme, error) {
 	}
 	m := make(map[string]Theme)
 	for i, t := range f.Themes {
+		// Preserve custom themes based on the retired Tokyo Night palette.
+		if t.Base == "tokyo-night" {
+			t.Base = "aurora"
+		}
 		if !themeID.MatchString(t.ID) || validTheme(t.ID) {
 			return nil, fmt.Errorf("theme %d: invalid or reserved ID %q", i+1, t.ID)
 		}
@@ -247,7 +251,7 @@ func (s *Server) refreshThemes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.reloadThemes()
-	http.Redirect(w, r, "/settings", 303)
+	http.Redirect(w, r, "/settings/themes", 303)
 }
 func (s *Server) duplicateTheme(w http.ResponseWriter, r *http.Request) {
 	if !postOnly(w, r) {
@@ -297,7 +301,7 @@ func (s *Server) duplicateTheme(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	http.Redirect(w, r, "/settings?edit="+id+"&message=Theme+duplicated", 303)
+	http.Redirect(w, r, "/settings/themes?edit="+id+"&message=Theme+duplicated", 303)
 }
 func cloneThemes(m map[string]Theme) map[string]Theme {
 	n := make(map[string]Theme, len(m)+1)
@@ -341,7 +345,7 @@ func (s *Server) saveTheme(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-	http.Redirect(w, r, "/settings?edit="+id+"&message=Theme+saved", 303)
+	http.Redirect(w, r, "/settings/themes?edit="+id+"&message=Theme+saved", 303)
 }
 
 // Values are validated #RRGGBB strings, IDs are constrained to ASCII slug characters.
