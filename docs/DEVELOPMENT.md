@@ -1,4 +1,4 @@
-# ReelAnvil development and Build 0.1 run guide
+# ReelAnvil development and local prototype run guide
 
 ## Build and source checks
 
@@ -29,11 +29,19 @@ REELANVIL_ADDR=127.0.0.1:18080 ./reelanvil serve
 
 Keep the terminal open while using the prototype. Stop it with **Ctrl+C**. This build has no background service or systemd unit. It binds to loopback by default; do not expose it publicly.
 
-## Build 0.1 maintainer checks
+## Maintainer checks
 
 - Visit Overview, Jobs, Media Library, Review, Campaigns, Services, Diagnostics, and Settings; check that each route renders and navigation works.
 - In Settings, change the instance name and theme, save, and confirm the values display. Restart with Ctrl+C and the start command above; confirm the values persist.
 - Confirm the overview labels itself as a prototype and does not imply real imports, jobs, reviews, services, or processing.
 - Confirm `GET /healthz` returns JSON `{"status":"ok"}`.
+
+### Build 0.3 theme and layout review
+
+- In Settings, cycle through Aurora, Dracula Dark, Tomorrow Night, Tokyo Night, Nocturne, and Foundry. Check the full page palette, sidebar/navigation, cards, controls, buttons, and all seven live preview swatches.
+- Check that Dracula Dark uses a neutral near-black charcoal background and that Aurora balances blue, teal, and lavender accents.
+- On Overview and Diagnostics, check that metric cards use distinguishable blue, teal, and purple semantic surfaces with readable text contrast.
+- Save a theme, refresh, and restart the server to confirm persistence.
+- This build remains a visual prototype. Media Library, Review, Campaigns, Services, and Jobs are placeholders; no media is processed and no production services are contacted.
 
 Only Overview, Settings, Diagnostics, and the route shell exist in this prototype; most other sections are visual/navigation placeholders. It does not process media, connect external services, create jobs, or publish clips. Runtime settings and logs live under `bin/Release/settings/` and `bin/Release/logs/`. Removing those generated directories resets prototype settings and logs.

@@ -42,3 +42,17 @@ This is the **single maintained build history**. Append dated records here rathe
 - Evidence: `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.2 Validation/`. Developer start/stop commands and maintainer check parameters: [`DEVELOPMENT.md`](DEVELOPMENT.md).
 - Git delivery: accepted Build 0.2 source was committed and pushed to `dev`; exact commit and archive checksum are recorded in the Chat handoff package. No release action is authorized by this candidate.
 - Next: Chat validation of the pushed source checkpoint. Local preview can be started from `bin/Release` with `REELANVIL_ADDR=127.0.0.1:18080 ./reelanvil serve` and stopped with Ctrl+C.
+
+### 2026-10-27 — Build 0.3 multi-tone theme refinement candidate
+
+- Handoff: `ReelAnvil_Build_0.3_Work_Handoff.zip`; archive SHA-256 `7fba98752ad2f471ece56be617fa2d92018e8ee6d9631acef914a9e7ef04e079`; patch SHA-256 `ee53f22206b6b86aadc70cd235ba9626dd8384fe9bad8c43f3015d3df3cedacf`.
+- Baseline: `gkuba/ReelAnvil`, `dev`, `4804bd8e7f7562c9a2d74a32aea1d16a54533173`; working tree clean and exact before patch. Both patch files matched the post-patch manifest SHA-256 and byte sizes before further changes.
+- Environment: Linux AMD64, Go `go1.27.1-X:nodwarf5`. `go test ./...` and `go vet ./...` passed; `./scripts/build-dev.sh` succeeded. The default Go cache was read-only in this managed session, so Go checks used `GOCACHE=/tmp/reelanvil-go-build-cache`.
+- Binary: `bin/Release/reelanvil`, SHA-256 `d00e22c21e923bb324066c33d2755c34d60d8654e36a3d85880665108fdfab4f`.
+- Browser visual checks cycled all six theme choices; each changed the settings palette and all seven preview swatches. Dracula Dark showed a neutral near-black charcoal base. Overview and Diagnostics showed differentiated blue, teal, and purple metric surfaces.
+- Tokyo Night saved successfully, survived page reload and server restart, then Aurora was restored and saved. `/healthz`, `/`, `/jobs`, `/media`, `/review`, `/campaigns`, `/services`, `/diagnostics`, and `/settings` each returned HTTP 200 at loopback `127.0.0.1:18081`.
+- The prior `bin/Release/` snapshot was preserved before the development build. Evidence logs, input handoff, and runtime snapshot: `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.3 Validation/`.
+- Outcome: automated, build, route, persistence, and visual checks passed; maintainer reviewed and accepted the candidate. No release merge, remote deployment, or `dist/` package was made.
+- Review preview: from `/home/katala/Projects/ReelAnvil/bin/Release`, run `REELANVIL_ADDR=127.0.0.1:18081 ./reelanvil serve`; open `http://127.0.0.1:18081`; stop with Ctrl+C. Return setting is Aurora.
+- Git delivery: accepted Build 0.3 source was committed and pushed to `dev`; exact commit and archive checksum are in the Chat handoff package.
+- Next: Chat validates the pushed source checkpoint. Remote deployment remains unauthorized.
