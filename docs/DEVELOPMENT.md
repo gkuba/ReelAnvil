@@ -10,7 +10,7 @@ go vet ./...
 ./scripts/build-dev.sh
 ```
 
-The development script recreates only `bin/Release/` and writes the compiled executable to `bin/Release/reelanvil`. Do not run `go run ./reelanvil`, `go test ./...`, or `go vet ./...` from `bin/Release`; those commands operate on Go source packages, not the compiled executable. The `dist/` directory is reserved for explicitly approved release builds.
+The development script atomically replaces only `bin/Release/reelanvil` and preserves runtime `settings/`, `data/`, `logs/`, and `temp/` directories. The SQLite database lives at `bin/Release/data/reelanvil.db` when started from that directory; never copy a live database file as a backup because WAL may contain committed changes. Stop the server before a simple file backup; an online backup workflow is not implemented yet. Do not run `go run ./reelanvil`, `go test ./...`, or `go vet ./...` from `bin/Release`; those commands operate on Go source packages, not the compiled executable. The `dist/` directory is reserved for explicitly approved release builds.
 
 ## Run and stop the local prototype
 

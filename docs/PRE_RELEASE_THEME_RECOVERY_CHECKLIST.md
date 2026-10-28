@@ -43,3 +43,7 @@ Build 0.4's happy-path duplicate/edit/save/refresh and active-theme persistence 
 - [ ] **Not Tested — Pre-release:** Review authentication/authorization and error/log data exposure before any shared or public network use.
 - [x] **B0.7 unit-tested:** Default and configured listener addresses are restricted to loopback; non-loopback bind attempts fail.
 - [ ] **Not Tested — Pre-release:** Network access may be enabled only after authentication, authorization, CSRF, TLS/termination, and explicit threat review are complete.
+
+## Deferred B0.7.1 theme acceptance
+- [ ] Custom theme edit/save/reload survives restart.
+- [ ] Applied theme and duplicate persist across restart.

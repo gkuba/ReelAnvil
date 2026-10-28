@@ -28,3 +28,8 @@ Security applies even to loopback/internal deployments. The current UI prototype
 - [ ] XSS tests cover custom theme names and external provider metadata.
 - [ ] Credential storage, redaction, session expiry/revocation, and secret scanning have automated tests before connectors ship.
 - [ ] Security header and CSP checks run in browser; avoid broad `unsafe-inline` allowances in production.
+
+## SQLite and connector secret boundary
+- SQLite holds nonsecret application records only. Never persist OAuth tokens, API keys, session cookies, or encryption keys in plaintext SQLite, JSON, logs, diagnostics, handoff archives, or Git.
+- Before implementing connectors, require encrypted credential storage with separate key management and scoped token lifecycle.
+- Scan for secrets before pushes and in CI; .gitignore is not a substitute.

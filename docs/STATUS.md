@@ -1,11 +1,11 @@
 # ReelAnvil — Project Status
 
 **Last reviewed:** 2026-10-28
-**Phase:** Build 0.7.1 settings POST regression fix; maintainer validated, ready for Chat source validation
-**Source baseline:** Clean local `dev` checkpoint `0590e3630e80898e53cda1c7e6d4d63ae692c7f5`. The B0.7 browser regression was reproduced: a same-origin browser POST arrived with `Origin: null`, `Sec-Fetch-Site: same-origin`, and no Referer, then was rejected. The candidate permits this exact combination while retaining rejection of cross-site metadata and mismatched origins. Automated checks and real-browser settings workflows pass; maintainer confirmed the fix works.
+**Phase:** Build 0.8 SQLite persistence foundation; locally validated and prepared for Chat checkpoint
+**Source baseline:** B0.7.1 commit `80dfb3c2502c2f2d17425df1c70ab26d19344de0`; handoff baseline and GitHub `dev` matched before B0.8 changes. B0.7.1 opaque-Origin regression fix was maintainer validated and pushed.
 **Repository URL / branch:** `git@github.com:gkuba/ReelAnvil.git` / `dev`.
-**Latest successful local build:** Build 0.7.1 candidate binary at `bin/Release/reelanvil`; SHA-256 and test/browser evidence are recorded in `docs/BUILD_HISTORY.md` and `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.7.1 Validation/`.
-**Library synchronization checkpoint:** B0.7 remains the last pushed `dev` checkpoint until the accepted B0.7.1 source checkpoint is pushed and packaged for Chat.
+**Latest successful local build:** Build 0.8 SQLite candidate at `bin/Release/reelanvil`; SHA-256 `e1146986d168a88f1115496fa08b5e8a7a987f34a7cab570949de452460343d5`. Checks and disposable executable restart evidence are recorded in `docs/BUILD_HISTORY.md` and `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/Build 0.8 Validation/`.
+**Library synchronization checkpoint:** B0.7.1 `80dfb3c2502c2f2d17425df1c70ab26d19344de0` is the last pushed `dev` checkpoint; B0.8 local validation passed and is being checkpointed for Chat verification.
 **Security boundary:** B0.7.1 retains loopback-only binding, local Host checks, body limits, timeouts, and response headers. A `null` Origin is accepted only with `Sec-Fetch-Site: same-origin`; authentication is still absent, so network exposure remains disabled. See the B0.7 and B0.7.1 validation records.
 
 ## Confirmed decisions
@@ -43,10 +43,13 @@
 - [ ] Remote deployment remains unauthorized; do not deploy without explicit approval.
 - [x] Commit/push B0.4 to `dev` and prepare the exact commit ZIP/handoff for Chat.
 - [x] Commit/push B0.5 to `dev` and prepare the exact commit ZIP/handoff for Chat.
-- [ ] Plan and implement the persistent SQLite application foundation and worker/API contracts.
+- [x] Apply the B0.8 SQLite foundation patch and pin the pure-Go SQLite driver.
+- [x] Complete B0.8 database setup, failure-mode, persistence, and executable restart validation.
+- [x] Complete B0.8 security/dependency source review, race tests, vet, module verification, executable build, and disposable database restart/failure validation.
+- [x] Complete local B0.8 database validation and prepare the verified source checkpoint for Chat.
 
 ## Blockers / open items
-- Build 0.7 remains a local-only mockup; it has no SQLite, authentication, AI/media integrations, jobs, or worker. Local request checks are defense-in-depth and do not replace authentication.
+- The pushed B0.7.1 checkpoint remains a local-only mockup without SQLite, authentication, AI/media integrations, jobs, or worker. The local B0.8 candidate adds only a minimal SQLite foundation. Local request checks are defense-in-depth and do not replace authentication.
 - Formal penetration testing and external dependency/SAST/secret scanning have not been performed; security scanners were unavailable in the local environment.
 - Browser build validation used alternate port `127.0.0.1:18089`; ports 18080 and 18085 were occupied, so those ports are covered by handler-level tests rather than this candidate's live-browser run.
 - Broader theme recovery, backup corruption, repair-lockout, interrupted-write, permissions, and malformed-config permutations remain deferred pre-release checks; see [`PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`](PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md).
@@ -54,7 +57,7 @@
 - Final copyright holder, third-party notices, vetted image digests and release packaging tests pending.
 
 ## Next verified milestone
-Chat validates the pushed B0.7.1 source checkpoint against the handoff commit and checksum. Complete remaining recovery checks before release; remote deployment remains unauthorized. The local preview is at `http://127.0.0.1:18089/settings/themes` and stops with Ctrl+C.
+Chat validates the pushed B0.8 source checkpoint against its exact commit ZIP and manifest. Start the local candidate from `/home/katala/Projects/ReelAnvil/bin/Release` with `./reelanvil serve`; the database is created at `data/reelanvil.db`. Stop with Ctrl+C. No remote deployment is authorized.
 
 ## Approved deferred Campaigns workflow (post-Build 0.6)
 

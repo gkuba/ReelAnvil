@@ -1,2 +1,9 @@
 /bin/
 /dist/
+/data/
+/logs/
+/settings/
+/temp/
+*.db
+*.db-wal
+*.db-shm

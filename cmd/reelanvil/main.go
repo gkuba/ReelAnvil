@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/gkuba/ReelAnvil/internal/app"
 	"os"
+
+	"github.com/gkuba/ReelAnvil/internal/app"
 )
 
 func main() {

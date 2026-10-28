@@ -10,5 +10,6 @@ This is the **single maintained project change log**. Record user-visible change
 - Build 0.6 development candidate adds a persistent compact navigation rail with grouped flyouts, glass-style panels, expanded SVG navigation icons, and neutral secondary actions. Dracula Lavender uses a blue-black surface palette. Campaign workflow remains design-only.
 - Build 0.7 development candidate consolidates Dracula around the stable `dracula-dark` ID, migrates prior Lavender selections and custom bases, darkens built-in surfaces, clarifies preview swatches, and derives active navigation accents from the selected theme. The unauthenticated prototype now enforces loopback binding and adds local request and response guardrails.
 - Build 0.7.1 development candidate fixes same-origin Settings and Theme Manager submissions when the browser serializes Origin as `null`, while continuing to reject cross-site Fetch Metadata and mismatched origins. It adds shared-router regression coverage for all current settings POST routes.
+- Build 0.8 development candidate adds an embedded SQLite persistence foundation with schema version 1 and a startup read/write probe; no workflow or secret tables are included.
 
 <!-- Add dated, verified user-facing changes here after successful builds; do not claim releases prematurely. -->

@@ -17,6 +17,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/gkuba/ReelAnvil/internal/store"
 )
 
 type Settings struct {
@@ -191,6 +193,17 @@ func Serve() error {
 	if err := paths(); err != nil {
 		return err
 	}
+	db, err := store.Open("data/reelanvil.db")
+	if err != nil {
+		return fmt.Errorf("database initialization: %w", err)
+	}
+	defer db.Close()
+	probeCtx, probeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err = db.CheckReadWrite(probeCtx); err != nil {
+		probeCancel()
+		return fmt.Errorf("database read/write verification: %w", err)
+	}
+	probeCancel()
 	cfgPath := "settings/config.json"
 	cfg, err := load(cfgPath)
 	if err != nil {
