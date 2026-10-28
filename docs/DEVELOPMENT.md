@@ -27,7 +27,7 @@ The server listens on `127.0.0.1:8080` by default. Open <http://127.0.0.1:8080> 
 REELANVIL_ADDR=127.0.0.1:18080 ./reelanvil serve
 ```
 
-Keep the terminal open while using the prototype. Stop it with **Ctrl+C**. This build has no background service or systemd unit. It binds to loopback by default; do not expose it publicly.
+Keep the terminal open while using the prototype. Stop it with **Ctrl+C**. This build has no background service or systemd unit. It enforces loopback-only listening and rejects non-local Host headers. Do not expose it publicly: it has no authentication, and the local request checks are defense-in-depth rather than a replacement for authentication.
 
 ## Maintainer checks
 
@@ -51,7 +51,14 @@ Keep the terminal open while using the prototype. Stop it with **Ctrl+C**. This 
 - Select the custom theme in Interface theme, save, refresh the page, restart the server, and confirm the selection and custom values persist.
 - If checking manual configuration refresh, back up `settings/themes.json` and `.bak`, make a valid JSON edit, then use **Refresh Themes**. Verify the custom-theme list and editor display the refreshed values.
 - Do not run recovery/failure-injection cases during ordinary development. They are tracked in [`PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`](PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md) and must be completed before release. Invalid JSON can leave saving locked until repaired and refreshed.
-- Theme files are user data under `bin/Release/settings/`. Preserve both `themes.json` and `themes.json.bak` across builds. Do not expose the current prototype beyond loopback; it has no authentication or CSRF protection.
+- Theme files are user data under `bin/Release/settings/`. Preserve both `themes.json` and `themes.json.bak` across builds. The prototype rejects off-origin browser POSTs, caps form bodies at 1 MiB, and applies local-only Host checks and basic security headers. It still has no authentication; network access is disabled until an authenticated deployment design is implemented.
+
+### Build 0.7 theme and local security review
+
+- Confirm there is only one built-in Dracula option, with canonical ID `dracula-dark`; legacy `dracula-lavender` saved selections and custom theme bases migrate to it without changing custom colors.
+- Check preview order (Background, Sidebar, Panels / Tiles, Primary, Secondary, Tertiary, Quaternary) separately from the seven editable persisted fields.
+- Verify theme custom colors, active navigation contrast, and normal/visited/hover/focus/selected flyout links.
+- Security guard tests confirm network bind addresses are rejected, non-local Host headers and cross-origin browser POSTs are blocked, POST request bodies are capped, and common headers are present. This remains unauthenticated local software; do not bypass the loopback bind restriction or expose it to another host.
 
 ### Build 0.5 Settings and theme review
 

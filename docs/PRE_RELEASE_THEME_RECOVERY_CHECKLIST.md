@@ -1,6 +1,6 @@
 # Pre-release checklist — Theme configuration and recovery
 
-**Status:** Broader recovery and failure-injection checks are **Not Tested — Pre-release**. The maintainer controls when this checklist is executed. Do not expose this prototype beyond loopback before the security review.
+**Status:** Broader recovery and failure-injection checks are **Not Tested — Pre-release**. The maintainer controls when this checklist is executed. This build enforces loopback-only access, but do not expose the unauthenticated prototype to another host.
 
 Build 0.4's happy-path duplicate/edit/save/refresh and active-theme persistence were checked locally. The automated suite also checks basic invalid hex rejection and line-numbered JSON syntax parsing. These checks do not complete the recovery checklist below.
 
@@ -38,6 +38,8 @@ Build 0.4's happy-path duplicate/edit/save/refresh and active-theme persistence 
 
 ## Security gate before non-loopback exposure
 
-- [ ] **Not Tested — Pre-release:** Add and review CSRF protection for all state-changing forms/endpoints before binding beyond loopback.
+- [x] **B0.7 local guard implemented and unit-tested:** Loopback-only listener validation, Host checks, same-origin/Fetch Metadata checks for browser POSTs, 1 MiB POST-body cap, server timeouts, and basic response security headers.
+- [ ] **Not Tested — Pre-release:** Complete a CSRF threat review, including browsers that omit Origin, Referer, and Fetch Metadata; implement authenticated session-bound tokens before any non-loopback bind is allowed.
 - [ ] **Not Tested — Pre-release:** Review authentication/authorization and error/log data exposure before any shared or public network use.
-- [ ] **Not Tested — Pre-release:** Confirm default bind stays loopback and test any future opt-in network bind with an explicit threat review.
+- [x] **B0.7 unit-tested:** Default and configured listener addresses are restricted to loopback; non-loopback bind attempts fail.
+- [ ] **Not Tested — Pre-release:** Network access may be enabled only after authentication, authorization, CSRF, TLS/termination, and explicit threat review are complete.

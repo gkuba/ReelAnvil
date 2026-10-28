@@ -43,7 +43,7 @@ const themePath = "settings/themes.json"
 const themeBackup = "settings/themes.json.bak"
 
 func builtinOptions() []Theme {
-	return []Theme{{ID: "aurora", Name: "Aurora"}, {ID: "dracula-dark", Name: "Dracula Classic"}, {ID: "dracula-lavender", Name: "Dracula Lavender"}, {ID: "tomorrow-night", Name: "Tomorrow Night"}, {ID: "nocturne", Name: "Nocturne"}, {ID: "foundry", Name: "Foundry"}}
+	return []Theme{{ID: "aurora", Name: "Aurora"}, {ID: "dracula-dark", Name: "Dracula"}, {ID: "tomorrow-night", Name: "Tomorrow Night"}, {ID: "nocturne", Name: "Nocturne"}, {ID: "foundry", Name: "Foundry"}}
 }
 func sortedThemes(m map[string]Theme) []Theme {
 	out := make([]Theme, 0, len(m))
@@ -66,6 +66,9 @@ func validateThemes(f themeFile) (map[string]Theme, error) {
 		// Preserve custom themes based on the retired Tokyo Night palette.
 		if t.Base == "tokyo-night" {
 			t.Base = "aurora"
+		}
+		if t.Base == "dracula-lavender" {
+			t.Base = "dracula-dark"
 		}
 		if !themeID.MatchString(t.ID) || validTheme(t.ID) {
 			return nil, fmt.Errorf("theme %d: invalid or reserved ID %q", i+1, t.ID)
@@ -354,7 +357,7 @@ func themeCSS(themes map[string]Theme) template.CSS {
 	for _, t := range sortedThemes(themes) {
 		base := baseTokens(t.Base)
 		c := t.Colors
-		for k, v := range map[string]string{"bg": c.Background, "sidebar": c.Sidebar, "surface": c.Surface, "line": c.Border, "text": c.Text, "accent": c.Primary, "secondary": c.Secondary, "tile-blue": c.Surface, "tile-teal": c.Sidebar, "tile-purple": c.Surface, "tile-blue-line": c.Border, "tile-teal-line": c.Border, "tile-purple-line": c.Border, "input": c.Sidebar, "nav-active": c.Surface, "note-bg": c.Surface, "focus": c.Primary} {
+		for k, v := range map[string]string{"bg": c.Background, "sidebar": c.Sidebar, "surface": c.Surface, "line": c.Border, "text": c.Text, "accent": c.Primary, "secondary": c.Secondary, "tile-blue": c.Surface, "tile-teal": c.Sidebar, "tile-purple": c.Surface, "tile-blue-line": c.Border, "tile-teal-line": c.Border, "tile-purple-line": c.Border, "input": c.Sidebar, "nav-active": c.Primary, "note-bg": c.Surface, "focus": c.Primary} {
 			base[k] = v
 		}
 		b.WriteString("body.theme-")
