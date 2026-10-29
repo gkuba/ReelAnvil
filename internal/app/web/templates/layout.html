@@ -1,0 +1,25 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ReelAnvil — {{.Title}}</title>
+<link rel="icon" type="image/vnd.microsoft.icon" href="/favicon.ico">
+<link rel="stylesheet" href="/assets/themes.css">
+<link rel="stylesheet" href="/assets/app.css?v={{.Version}}">
+<script src="/assets/app.js?v={{.Version}}" defer></script>
+</head>
+<body class="{{.BodyTheme}}">
+<div class="shell">
+{{template "sidebar" .}}
+<main>
+{{template "content" .}}
+</main>
+</div>
+</body>
+</html>
+{{end}}
+
+{{define "devbar"}}<div class="top"><div class="eyebrow">Local development / Build {{.Version}}</div><div class="pill">● Mockup · No processing active</div></div>{{end}}
+
+{{define "flash"}}{{with .Flash}}<div class="note{{if .Error}} error{{else}} success{{end}}" role="{{if .Error}}alert{{else}}status{{end}}">{{.Text}}</div>{{end}}{{end}}

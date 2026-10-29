@@ -360,16 +360,16 @@ func TestCampaignMutationRoutesRejectNonPostMethods(t *testing.T) {
 
 func TestEndingSoonUsesCalendarDatesAndKnownDeadlinesOnly(t *testing.T) {
 	now := time.Date(2026, 10, 28, 19, 0, 0, 0, time.FixedZone("local", -6*60*60))
-	if !deadlineWithinSevenDays("2026-10-28", now) {
+	if !deadlineWithinSevenDays(store.Campaign{Deadline: "2026-10-28"}, now) {
 		t.Fatal("today's calendar deadline should count as ending soon")
 	}
-	if !deadlineWithinSevenDays("2026-11-04", now) {
+	if !deadlineWithinSevenDays(store.Campaign{Deadline: "2026-11-04"}, now) {
 		t.Fatal("deadline on the seventh day should count")
 	}
-	if deadlineWithinSevenDays("2026-11-05", now) {
+	if deadlineWithinSevenDays(store.Campaign{Deadline: "2026-11-05"}, now) {
 		t.Fatal("deadline beyond seven days counted")
 	}
-	if deadlineWithinSevenDays("unknown", now) {
+	if deadlineWithinSevenDays(store.Campaign{Deadline: "unknown"}, now) {
 		t.Fatal("invalid deadline counted")
 	}
 }
@@ -416,7 +416,7 @@ func TestThemePaletteAndLegacyMigration(t *testing.T) {
 		if !validTheme(theme) {
 			t.Fatalf("missing theme %s", theme)
 		}
-		if theme != "aurora" && !strings.Contains(pageTemplate.Tree.Root.String(), "body."+theme+"{") {
+		if !strings.Contains(themeCSS(nil), "body."+theme+"{") {
 			t.Fatalf("missing palette %s", theme)
 		}
 	}
@@ -586,7 +586,7 @@ func TestSettingsAndThemeMutationRoutesAcceptSameOriginBrowserPosts(t *testing.T
 		t.Run("apply on "+host, func(t *testing.T) {
 			s := securityTestServer(t)
 			w := postForm(t, s.handler(), host, "/settings", "instance_name=ReelAnvil+Check&theme=dracula-dark&theme_page=1", "same-origin", "null", "")
-			if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/settings/themes?saved=1" {
+			if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/settings/themes" || !strings.Contains(w.Header().Get("Set-Cookie"), flashCookie+"=") {
 				t.Fatalf("status/location = %d/%q; body=%s", w.Code, w.Header().Get("Location"), w.Body.String())
 			}
 			cfg, err := load(s.cfgPath)

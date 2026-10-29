@@ -46,7 +46,7 @@ func TestMigrateVersionOnePreservesStorageProbe(t *testing.T) {
 	if err = s.db.QueryRow(`SELECT value FROM storage_probe WHERE id=1`).Scan(&value); err != nil {
 		t.Fatal(err)
 	}
-	if version != 2 || value != "existing" {
+	if version != SchemaVersion || value != "existing" {
 		t.Fatalf("migration result version=%d value=%q", version, value)
 	}
 	var tableCount int

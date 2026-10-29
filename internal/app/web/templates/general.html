@@ -1,0 +1,15 @@
+{{define "content"}}
+{{template "devbar" .}}
+<h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/></svg> General</h1>
+<p>Application-wide settings.</p>
+{{template "flash" .}}
+<div class="card narrow-fields">
+<h2>Instance</h2>
+<form method="post" action="/settings">
+<label for="instance_name">Instance name</label>
+<input id="instance_name" name="instance_name" maxlength="64" required value="{{.Config.InstanceName}}">
+<div class="actions end"><button type="submit"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v7h10V3M7 21v-8h10v8"/></svg>Save Settings</button></div>
+</form>
+</div>
+<footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
+{{end}}

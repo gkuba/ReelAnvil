@@ -2,7 +2,7 @@
 
 **ReelAnvil** is a planned open-source, self-hosted application for turning authorized long-form video into reviewable short-form clips.
 
-> **Project status:** Build 0.9.1 is a local development prototype, not a supported release. Campaign records can be added and tracked manually; most media, AI, worker, and platform integrations remain planned.
+> **Project status:** Build 0.9.2 is a local development prototype, not a supported release. Campaign records can be added and tracked manually; the media, AI, worker and platform integrations are still planned.
 
 ## The idea
 
@@ -40,9 +40,10 @@ These are design targets and have **not** yet been validated as a completed depl
 
 ## Getting started
 
-There is no supported installation or release yet. To run the local development prototype after building it, use:
+There is no supported installation or release yet. To build and run the local development prototype (Go 1.23 or newer):
 
 ```sh
+./scripts/build-dev.sh
 cd bin/Release
 ./reelanvil serve
 ```
@@ -54,6 +55,7 @@ For current plans and decisions, see:
 - [Build standards](docs/REELANVIL_BUILD_STANDARDS.md)
 - [Project status](docs/STATUS.md)
 - [Change history](docs/CHANGELOG.md)
+- [Contributor and agent guide](AGENTS.md)
 - [Licensing information](docs/licensing/LICENSING.md)
 
 ## Licensing

@@ -1,0 +1,15 @@
+{{define "content"}}
+{{template "devbar" .}}
+<h1>Diagnostics</h1>
+<p>Local server status; no external integrations are being probed.</p>
+<div class="stats">
+<div class="card metric-card"><h2>HTTP server</h2><div class="metric">Online</div></div>
+<div class="card metric-card"><h2>Uptime</h2><div class="metric">{{.Uptime}}</div></div>
+<div class="card metric-card"><h2>AI / worker / media</h2><div class="metric">Not configured</div></div>
+</div>
+<div class="card">
+<h2>Runtime</h2>
+<p>Version {{.Version}} · Data directory <code>{{.DataDir}}</code> · Listening on <code>{{.Address}}</code></p>
+</div>
+<footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
+{{end}}

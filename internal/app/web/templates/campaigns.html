@@ -1,0 +1,137 @@
+{{define "content"}}
+<div class="page-top"><div><div class="eyebrow">Campaign workspace</div>
+<h1>Campaigns</h1>
+<p>Track campaigns you choose. Discovery and external enrollment are not connected.</p>
+</div>
+<span class="badge">Local records</span></div>
+<div class="stats"><div class="card metric-card"><h2>Available</h2>
+<div class="metric">{{.Available}}</div>
+<small>Known records not currently tracked</small></div>
+<div class="card metric-card"><h2>Tracked</h2>
+<div class="metric">{{.Tracked}}</div>
+<small>Your local tracking list</small></div>
+<div class="card metric-card"><h2>Ending Soon</h2>
+<div class="metric">{{.EndingSoon}}</div>
+<small>Known deadlines in the next 7 days</small></div>
+</div>
+{{template "flash" .}}<div class="card"><h2>Add a campaign manually</h2>
+<p>Adding this record starts local tracking with status Interested. No campaign is applied to or submitted to an external service.</p>
+<details><summary class="btn secondary small">Enter campaign details</summary>
+<form method="post" action="/campaigns/add"><div class="form-grid"><div><label for="platform">Platform</label>
+<select id="platform" name="platform" required>{{range .Platforms}}<option value="{{.ID}}">{{.Name}}</option>
+{{end}}</select>
+</div>
+<div><label for="campaign-title">Title</label>
+<input id="campaign-title" name="title" required maxlength="160"></div>
+<div class="wide"><label for="campaign-url">Campaign URL</label>
+<input id="campaign-url" name="url" type="url" inputmode="url" placeholder="https://…" required maxlength="2048"></div>
+<div><label for="payout">Payout (optional)</label>
+<input id="payout" name="payout" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="Unknown"></div>
+<div><label for="budget">Budget (optional)</label>
+<input id="budget" name="budget" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" placeholder="Unknown"></div>
+<div><label for="deadline">Deadline (optional)</label>
+<input id="deadline" name="deadline" type="date"></div>
+<div><label for="view-url">View campaign URL (optional)</label>
+<input id="view-url" name="view_url" type="url" placeholder="Uses campaign URL when blank"></div>
+<div class="wide"><label for="requirements">Requirements (optional)</label>
+<textarea id="requirements" name="requirements" maxlength="8000"></textarea>
+</div>
+<div><label for="apply-url">Apply / Join URL (optional, verified target)</label>
+<input id="apply-url" name="apply_url" type="url"></div>
+<div><label for="submit-url">Submit content URL (optional, verified target)</label>
+<input id="submit-url" name="submit_url" type="url"></div>
+<div class="wide"><label for="notes">Your notes (optional)</label>
+<textarea id="notes" name="notes" maxlength="8000"></textarea>
+</div>
+</div>
+<div class="actions"><button type="submit">Add and track</button></div>
+</form>
+</details>
+</div>
+<div class="tabs" role="tablist" aria-label="Campaign views"><a role="tab" aria-selected="{{if eq .View "available"}}true{{else}}false{{end}}" class="{{if eq .View "available"}}active{{end}}" href="/campaigns?view=available">Available ({{.Available}})</a><a role="tab" aria-selected="{{if eq .View "tracked"}}true{{else}}false{{end}}" class="{{if eq .View "tracked"}}active{{end}}" href="/campaigns?view=tracked">Tracked ({{.Tracked}})</a></div>
+{{if eq .View "available"}}<div class="note"><strong>Campaign discovery unavailable.</strong> Public discovery endpoints and permissions have not been independently confirmed for Content Rewards or Vyro. No scraping, login, or authenticated requests are made. You can still add a verified campaign URL manually.</div>
+{{end}}<form class="filter-row" method="get" action="/campaigns"><input type="hidden" name="view" value="{{.View}}"><div><label for="q">Search</label>
+<input id="q" name="q" type="search" value="{{.Search}}" placeholder="Title or requirements"></div>
+<div><label for="platform-filter">Platform</label>
+<select id="platform-filter" name="platform"><option value="">All platforms</option>
+{{range .Platforms}}<option value="{{.ID}}" {{if eq $.Platform .ID}}selected{{end}}>{{.Name}}</option>
+{{end}}</select>
+</div>
+{{if eq .View "tracked"}}<div><label for="status-filter">Status</label>
+<select id="status-filter" name="status"><option value="">All statuses</option>
+{{range .Statuses}}<option value="{{.}}" {{if eq $.Status .}}selected{{end}}>{{.}}</option>
+{{end}}</select>
+</div>
+{{end}}<div><label for="sort">Sort by</label>
+<select id="sort" name="sort"><option value="title" {{if eq .Sort "title"}}selected{{end}}>Title</option>
+<option value="deadline" {{if eq .Sort "deadline"}}selected{{end}}>Deadline</option>
+<option value="payout" {{if eq .Sort "payout"}}selected{{end}}>Payout</option>
+</select>
+</div>
+<button class="secondary" type="submit">Filter</button></form>
+<div class="card table-wrap"><table class="table"><thead><tr><th>Campaign</th>
+<th>Platform / source</th>
+<th>Status</th>
+<th>Deadline</th>
+<th>Payout / budget</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody>{{range .Campaigns}}<tr><td><strong>{{.Title}}</strong><span class="muted">{{if .Requirements}}{{.Requirements}}{{else}}No requirements recorded{{end}}</span>{{if .Notes}}<p><small>Your notes: {{.Notes}}</small></p>
+{{end}}<details><summary>Source details</summary>
+<p>Provenance: {{.Provenance}}</p>
+<p>Source status: {{if .PlatformStatus}}{{.PlatformStatus}}{{else}}Unknown{{end}}</p>
+<p>Last verified: {{if .VerifiedAt}}{{.VerifiedAt}}{{else}}Not verified{{end}}</p>
+{{if isManual .}}<details><summary>Edit manually entered campaign</summary>
+{{ $campaign := .}}<form method="post" action="/campaigns/update"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="tracked" value="{{.Tracked}}"><input type="hidden" name="platform" value="{{.Platform}}"><label>Title</label>
+<input name="title" maxlength="160" required value="{{.Title}}"><label>Campaign URL</label>
+<input name="url" type="url" maxlength="2048" required value="{{.URL}}"><label>Requirements</label>
+<textarea name="requirements" maxlength="8000">{{.Requirements}}</textarea>
+<div class="form-grid"><div><label>Payout</label>
+<input name="payout" inputmode="decimal" value="{{moneyInput .PayoutCents}}"></div>
+<div><label>Budget</label>
+<input name="budget" inputmode="decimal" value="{{moneyInput .BudgetCents}}"></div>
+<div><label>Deadline</label>
+<input name="deadline" type="date" value="{{.Deadline}}"></div>
+{{if .Tracked}}<div><label>Local status</label>
+<select name="status">{{range $.Statuses}}<option value="{{.}}" {{if eq $campaign.UserStatus .}}selected{{end}}>{{.}}</option>
+{{end}}</select>
+</div>
+{{end}}<div><label>View URL</label>
+<input name="view_url" type="url" value="{{.ViewURL}}"></div>
+<div><label>Apply / Join URL</label>
+<input name="apply_url" type="url" value="{{.ApplyURL}}"></div>
+<div><label>Submit content URL</label>
+<input name="submit_url" type="url" value="{{.SubmitURL}}"></div>
+</div>
+{{if .Tracked}}<label>Your notes</label>
+<textarea name="notes" maxlength="8000">{{.Notes}}</textarea>
+{{else}}<p>Saving source details keeps this record in Available.</p>
+{{end}}<button class="secondary small" type="submit">Save campaign</button></form>
+</details>
+{{end}}</details>
+</td>
+<td>{{platformName .Platform}}<br><span class="badge">{{if isManual .}}Manual{{else}}Discovered{{end}}</span></td>
+<td>{{if .Tracked}}<span class="badge status">{{.UserStatus}}</span><details><summary>Update local status</summary>
+{{ $campaign := .}}<form method="post" action="/campaigns/status"><input type="hidden" name="id" value="{{.ID}}"><label>Status</label>
+<select name="status">{{range $.Statuses}}<option value="{{.}}" {{if eq $campaign.UserStatus .}}selected{{end}}>{{.}}</option>
+{{end}}</select>
+<label>Notes</label>
+<textarea name="notes" maxlength="8000">{{.Notes}}</textarea>
+<button class="secondary small" type="submit">Save status</button></form>
+</details>
+{{else if .PlatformStatus}}<span class="badge">{{.PlatformStatus}}</span>{{else}}<span class="badge">{{if .UserStatus}}Previously {{.UserStatus}}{{else}}Unknown{{end}}</span>{{end}}</td>
+<td>{{deadlineLabel .Deadline}}</td>
+<td>{{money .PayoutCents}}<br><small>Budget: {{money .BudgetCents}}</small></td>
+<td><div class="row-actions"><a class="external" href="{{if .ViewURL}}{{.ViewURL}}{{else}}{{.URL}}{{end}}" target="_blank" rel="noopener noreferrer">View campaign</a>{{if hasValue .ApplyURL}}<a class="external" href="{{.ApplyURL}}" target="_blank" rel="noopener noreferrer">Apply / Join</a>{{end}}{{if hasValue .SubmitURL}}<a class="external" href="{{.SubmitURL}}" target="_blank" rel="noopener noreferrer">Submit content</a>{{end}}<button class="secondary small copy-link" type="button" data-copy="{{.URL}}">Copy Link</button>{{if not .Tracked}}<form method="post" action="/campaigns/track"><input type="hidden" name="id" value="{{.ID}}"><button class="small" type="submit">Track</button></form>
+{{else}}<form method="post" action="/campaigns/untrack"><input type="hidden" name="id" value="{{.ID}}"><button class="secondary small" type="submit">Untrack</button></form>
+{{end}}</div>
+</td>
+</tr>
+{{else}}<tr><td colspan="6" class="empty">{{if eq .View "tracked"}}No tracked campaigns match these filters. Add a campaign manually or track one from Available.{{else}}No available campaign records match these filters. Add a campaign manually to begin tracking.{{end}}</td>
+</tr>
+{{end}}</tbody>
+</table>
+</div>
+<footer>ReelAnvil · Campaign metadata and tracking are stored locally. Discovery, applying and content submission are not automated.</footer>
+{{end}}

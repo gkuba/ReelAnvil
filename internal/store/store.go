@@ -16,6 +16,19 @@ type Store struct {
 	path string
 }
 
+// migration upgrades the schema from version index to index+1. Migrations run
+// in order inside one transaction, so a failure leaves user_version unchanged.
+type migration func(context.Context, *sql.Tx) error
+
+var migrations = []migration{
+	migrateStorageProbeV1,
+	migrateCampaignsV2,
+	migrateCampaignsV3,
+}
+
+// SchemaVersion is the database schema version this build writes.
+var SchemaVersion = len(migrations)
+
 func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return nil, err
@@ -56,6 +69,7 @@ func Open(path string) (*Store, error) {
 	}
 	return s, nil
 }
+
 func migrate(ctx context.Context, db *sql.DB) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -66,30 +80,36 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err = tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v); err != nil {
 		return err
 	}
-	if v > 2 {
+	if v > SchemaVersion {
 		return fmt.Errorf("unsupported database schema version %d", v)
 	}
-	if v == 0 {
-		if _, err = tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS storage_probe (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)`); err != nil {
-			return err
-		}
-		if err = validateSchema(ctx, tx); err != nil {
-			return err
-		}
-		if _, err = tx.ExecContext(ctx, "PRAGMA user_version=1"); err != nil {
-			return err
-		}
-		v = 1
+	if v == SchemaVersion {
+		return nil
 	}
-	if v == 1 {
-		if err = migrateCampaignsV2(ctx, tx); err != nil {
-			return err
+	for ; v < SchemaVersion; v++ {
+		if err = migrations[v](ctx, tx); err != nil {
+			return fmt.Errorf("schema migration to version %d: %w", v+1, err)
 		}
-		if _, err = tx.ExecContext(ctx, "PRAGMA user_version=2"); err != nil {
-			return err
-		}
+	}
+	// Table rebuilds must not leave dangling references behind.
+	var violations int
+	if err = tx.QueryRowContext(ctx, "SELECT count(*) FROM pragma_foreign_key_check").Scan(&violations); err != nil {
+		return err
+	}
+	if violations > 0 {
+		return fmt.Errorf("schema migration left %d foreign key violations", violations)
+	}
+	if _, err = tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version=%d", SchemaVersion)); err != nil {
+		return err
 	}
 	return tx.Commit()
+}
+
+func migrateStorageProbeV1(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS storage_probe (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)`); err != nil {
+		return err
+	}
+	return validateSchema(ctx, tx)
 }
 
 func migrateCampaignsV2(ctx context.Context, tx *sql.Tx) error {
@@ -126,9 +146,73 @@ func migrateCampaignsV2(ctx context.Context, tx *sql.Tx) error {
 		)`,
 		`CREATE INDEX tracked_campaigns_status ON tracked_campaigns(user_status, tracked_at)`,
 	}
+	return execAll(ctx, tx, statements)
+}
+
+// migrateCampaignsV3 rebuilds the campaign tables so that:
+//   - platform and status lists are validated in Go (Platforms, Statuses)
+//     instead of CHECK constraints, which SQLite can only change by rebuilding
+//     the table;
+//   - deadlines are stored in one format, a YYYY-MM-DD calendar date;
+//   - manual records written by the Build 0.9 insert bug are repaired. That
+//     insert passed one argument too many, which stored the campaign URL as
+//     view_url and shifted the view, apply and submit URLs one column right,
+//     leaving the submit URL (usually empty) in created_at.
+func migrateCampaignsV3(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`UPDATE campaign_sources SET view_url=apply_url, apply_url=submit_url, submit_url=created_at, created_at=updated_at
+			WHERE source_kind='manual' AND created_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*' AND view_url=canonical_url`,
+		`UPDATE campaign_sources SET created_at=updated_at
+			WHERE created_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'`,
+		`UPDATE campaign_sources SET submit_url='' WHERE submit_url<>'' AND submit_url NOT LIKE 'https://%'`,
+		`CREATE TABLE campaign_sources_v3 (
+			id TEXT PRIMARY KEY,
+			platform TEXT NOT NULL CHECK(length(platform) BETWEEN 1 AND 64),
+			external_id TEXT,
+			canonical_url TEXT NOT NULL,
+			title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 160),
+			requirements TEXT NOT NULL DEFAULT '',
+			payout_cents INTEGER CHECK(payout_cents IS NULL OR payout_cents >= 0),
+			budget_cents INTEGER CHECK(budget_cents IS NULL OR budget_cents >= 0),
+			deadline TEXT CHECK(deadline IS NULL OR deadline GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+			platform_status TEXT NOT NULL DEFAULT '',
+			source_kind TEXT NOT NULL CHECK(source_kind IN ('discovered','manual')),
+			provenance TEXT NOT NULL,
+			view_url TEXT NOT NULL DEFAULT '',
+			apply_url TEXT NOT NULL DEFAULT '',
+			submit_url TEXT NOT NULL DEFAULT '',
+			verified_at TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			UNIQUE(platform, canonical_url)
+		)`,
+		`INSERT INTO campaign_sources_v3 SELECT id,platform,external_id,canonical_url,title,requirements,payout_cents,budget_cents,
+			CASE WHEN deadline_utc IS NULL OR deadline_utc='' THEN NULL ELSE substr(deadline_utc,1,10) END,
+			platform_status,source_kind,provenance,view_url,apply_url,submit_url,verified_at,created_at,updated_at FROM campaign_sources`,
+		`CREATE TABLE tracked_campaigns_v3 (
+			campaign_id TEXT PRIMARY KEY REFERENCES campaign_sources_v3(id) ON DELETE CASCADE,
+			user_status TEXT NOT NULL CHECK(length(user_status) BETWEEN 1 AND 32),
+			notes TEXT NOT NULL DEFAULT '',
+			is_tracked INTEGER NOT NULL DEFAULT 1 CHECK(is_tracked IN (0,1)),
+			tracked_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`INSERT INTO tracked_campaigns_v3 SELECT campaign_id,user_status,notes,is_tracked,tracked_at,updated_at FROM tracked_campaigns`,
+		`DROP TABLE tracked_campaigns`,
+		`DROP TABLE campaign_sources`,
+		// Renaming also rewrites tracked_campaigns_v3's foreign key reference.
+		`ALTER TABLE campaign_sources_v3 RENAME TO campaign_sources`,
+		`ALTER TABLE tracked_campaigns_v3 RENAME TO tracked_campaigns`,
+		`CREATE UNIQUE INDEX campaign_sources_external_id ON campaign_sources(platform, external_id) WHERE external_id IS NOT NULL AND external_id <> ''`,
+		`CREATE INDEX tracked_campaigns_status ON tracked_campaigns(user_status, tracked_at)`,
+	}
+	return execAll(ctx, tx, statements)
+}
+
+func execAll(ctx context.Context, tx *sql.Tx, statements []string) error {
 	for _, statement := range statements {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("campaign migration: %w", err)
+			return err
 		}
 	}
 	return nil

@@ -3,10 +3,7 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
-	"html/template"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -15,19 +12,19 @@ import (
 )
 
 type campaignPageData struct {
-	Section, View, Search, Platform, Status, Sort, Message, Error string
-	BodyTheme                                                     string
-	ThemeCSS                                                      template.CSS
-	IconURL                                                       string
-	SidebarHTML                                                   template.HTML
-	SidebarCSS                                                    template.CSS
-	SidebarScript                                                 template.JS
-	Campaigns                                                     []store.Campaign
-	Available, Tracked, EndingSoon                                int
-	Platforms                                                     []platformOption
-	Statuses                                                      []string
+	pageBase
+	View, Search, Platform, Status, Sort string
+	Campaigns                            []store.Campaign
+	Available, Tracked, EndingSoon       int
+	Platforms                            []store.Platform
+	Statuses                             []string
 }
-type platformOption struct{ ID, Name string }
+
+type overviewPageData struct {
+	pageBase
+	Campaigns                      []store.Campaign
+	Available, Tracked, EndingSoon int
+}
 
 // CampaignDiscoveryAdapter is the only integration boundary for public
 // discovery providers. Build 0.9 wires no adapters because neither platform's
@@ -37,47 +34,42 @@ type CampaignDiscoveryAdapter interface {
 	Discover(context.Context) ([]store.Campaign, error)
 }
 
-var campaignPlatforms = []platformOption{{"content-rewards", "Content Rewards"}, {"vyro", "Vyro"}}
-var campaignStatuses = []string{"Interested", "Applied", "Active", "Completed", "Archived"}
+const storeTimeout = 5 * time.Second
 
 func (s *Server) campaignSnapshot() ([]store.Campaign, error) {
 	if s.store == nil {
 		return nil, errors.New("campaign storage is unavailable")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
 	defer cancel()
 	return s.store.ListCampaigns(ctx)
 }
 
-func (s *Server) campaignConfig() (Settings, template.CSS) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.cfg, template.CSS(themeCSS(s.themes))
-}
-
 func (s *Server) campaignsPage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	all, err := s.campaignSnapshot()
 	if err != nil {
+		s.log.Println("list campaigns:", err)
 		http.Error(w, "campaign storage is unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	view := r.URL.Query().Get("view")
+	q := r.URL.Query()
+	view := q.Get("view")
 	if view != "tracked" {
 		view = "available"
 	}
-	search := strings.TrimSpace(r.URL.Query().Get("q"))
-	platform := r.URL.Query().Get("platform")
-	status := r.URL.Query().Get("status")
-	sortKey := r.URL.Query().Get("sort")
+	search := strings.TrimSpace(q.Get("q"))
+	platform := q.Get("platform")
+	status := q.Get("status")
+	sortKey := q.Get("sort")
 	if sortKey != "deadline" && sortKey != "payout" {
 		sortKey = "title"
 	}
-	rows := make([]store.Campaign, 0, len(all))
 	available, tracked, ending := campaignCounts(all, time.Now())
+	rows := make([]store.Campaign, 0, len(all))
 	for _, c := range all {
 		if view == "available" && c.Tracked || view == "tracked" && !c.Tracked {
 			continue
@@ -93,225 +85,182 @@ func (s *Server) campaignsPage(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = append(rows, c)
 	}
-	store.StableSortCampaigns(rows, func(a, b store.Campaign) bool {
-		switch sortKey {
-		case "deadline":
-			ad, ae := campaignDeadline(a.Deadline)
-			bd, be := campaignDeadline(b.Deadline)
-			if ae != be {
-				return ae
-			}
-			if ae && !ad.Equal(bd) {
-				return ad.Before(bd)
-			}
-		case "payout":
-			if (a.PayoutCents == nil) != (b.PayoutCents == nil) {
-				return a.PayoutCents != nil
-			}
-			if a.PayoutCents != nil && *a.PayoutCents != *b.PayoutCents {
-				return *a.PayoutCents > *b.PayoutCents
-			}
-		}
-		if !strings.EqualFold(a.Title, b.Title) {
-			return strings.ToLower(a.Title) < strings.ToLower(b.Title)
-		}
-		return a.ID < b.ID
+	sort.SliceStable(rows, func(i, j int) bool { return campaignLess(rows[i], rows[j], sortKey) })
+	s.render(w, "campaigns", campaignPageData{
+		pageBase: s.base(w, r, "Campaigns", "campaigns"),
+		View:     view, Search: search, Platform: platform, Status: status, Sort: sortKey,
+		Campaigns: rows, Available: available, Tracked: tracked, EndingSoon: ending,
+		Platforms: store.Platforms, Statuses: store.Statuses,
 	})
-	cfg, css := s.campaignConfig()
-	icon := iconURL(selectedIcon(cfg), 64)
-	data := campaignPageData{Section: "campaigns", View: view, Search: search, Platform: platform, Status: status, Sort: sortKey, Message: r.URL.Query().Get("message"), Error: r.URL.Query().Get("error"), BodyTheme: bodyTheme(cfg.Theme), ThemeCSS: css, IconURL: icon, SidebarHTML: renderSidebar("campaigns", icon), SidebarCSS: template.CSS(sidebarCSS), SidebarScript: template.JS(sidebarScript), Campaigns: rows, Available: available, Tracked: tracked, EndingSoon: ending, Platforms: campaignPlatforms, Statuses: campaignStatuses}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := campaignTemplate.Execute(w, data); err != nil {
-		s.log.Println("campaign page render:", err)
+}
+
+// campaignLess orders by the chosen key, with unknown values last, then by title and ID.
+func campaignLess(a, b store.Campaign, key string) bool {
+	switch key {
+	case "deadline":
+		ad, aok := a.DeadlineDate()
+		bd, bok := b.DeadlineDate()
+		if aok != bok {
+			return aok
+		}
+		if aok && !ad.Equal(bd) {
+			return ad.Before(bd)
+		}
+	case "payout":
+		if (a.PayoutCents == nil) != (b.PayoutCents == nil) {
+			return a.PayoutCents != nil
+		}
+		if a.PayoutCents != nil && *a.PayoutCents != *b.PayoutCents {
+			return *a.PayoutCents > *b.PayoutCents
+		}
+	}
+	if !strings.EqualFold(a.Title, b.Title) {
+		return strings.ToLower(a.Title) < strings.ToLower(b.Title)
+	}
+	return a.ID < b.ID
+}
+
+// campaignMutation wraps the shared POST handling for campaign forms: method
+// and storage checks, form parsing, a store timeout, and a redirect back to the
+// tracked list carrying either the success message or a user-safe error.
+func (s *Server) campaignMutation(do func(ctx context.Context, r *http.Request) (string, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !postOnly(w, r) {
+			return
+		}
+		if s.store == nil {
+			http.Error(w, "campaign storage is unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			s.redirectCampaign(w, r, "", store.InputErrorf("invalid form submission"))
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), storeTimeout)
+		defer cancel()
+		message, err := do(ctx, r)
+		s.redirectCampaign(w, r, message, err)
+	}
+}
+
+func (s *Server) redirectCampaign(w http.ResponseWriter, r *http.Request, message string, err error) {
+	if err != nil {
+		setFlash(w, s.campaignErrorMessage(err), true)
+	} else if message != "" {
+		setFlash(w, message, false)
+	}
+	http.Redirect(w, r, "/campaigns?view=tracked", http.StatusSeeOther)
+}
+
+// campaignErrorMessage shows validation messages as-is and hides internal
+// database errors behind a generic message, logging the detail.
+func (s *Server) campaignErrorMessage(err error) string {
+	var input store.InputError
+	switch {
+	case errors.As(err, &input):
+		return input.Error()
+	case errors.Is(err, store.ErrCampaignNotFound):
+		return "That campaign no longer exists."
+	case errors.Is(err, store.ErrCampaignDuplicate):
+		return "Another campaign on this platform already uses that URL."
+	case errors.Is(err, context.DeadlineExceeded):
+		return "The database is busy. Please try again."
+	default:
+		s.log.Println("campaign update failed:", err)
+		return "The campaign could not be saved. See logs/reelanvil.log for details."
 	}
 }
 
 func (s *Server) addCampaign(w http.ResponseWriter, r *http.Request) {
-	if !postOnly(w, r) {
-		return
-	}
-	if s.store == nil {
-		http.Error(w, "campaign storage is unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		redirectCampaign(w, r, "", "invalid form submission")
-		return
-	}
-	in, err := campaignInputFromForm(r)
-	if err != nil {
-		redirectCampaign(w, r, "", err.Error())
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	c, created, err := s.store.AddManualCampaign(ctx, in)
-	if err != nil {
-		redirectCampaign(w, r, "", err.Error())
-		return
-	}
-	if created {
-		redirectCampaign(w, r, "Manual campaign added to Tracked with Interested status.", "")
-	} else if c.Tracked {
-		redirectCampaign(w, r, "This campaign is already tracked.", "")
-	} else {
-		redirectCampaign(w, r, "This campaign already exists. Use Track to add it to your list.", "")
-	}
+	s.campaignMutation(func(ctx context.Context, r *http.Request) (string, error) {
+		in, err := campaignInputFromForm(r)
+		if err != nil {
+			return "", err
+		}
+		c, created, err := s.store.AddManualCampaign(ctx, in)
+		switch {
+		case err != nil:
+			return "", err
+		case created:
+			return "Manual campaign added to Tracked with Interested status.", nil
+		case c.Tracked:
+			return "This campaign is already tracked.", nil
+		default:
+			return "This campaign already exists. Use Track to add it to your list.", nil
+		}
+	})(w, r)
 }
 
 func campaignInputFromForm(r *http.Request) (store.CampaignInput, error) {
 	payout, err := store.ParseMoneyCents(r.FormValue("payout"))
 	if err != nil {
-		return store.CampaignInput{}, fmt.Errorf("payout: %w", err)
+		return store.CampaignInput{}, store.InputErrorf("payout: %v", err)
 	}
 	budget, err := store.ParseMoneyCents(r.FormValue("budget"))
 	if err != nil {
-		return store.CampaignInput{}, fmt.Errorf("budget: %w", err)
+		return store.CampaignInput{}, store.InputErrorf("budget: %v", err)
 	}
-	return store.CampaignInput{Platform: r.FormValue("platform"), URL: r.FormValue("url"), Title: r.FormValue("title"), Requirements: r.FormValue("requirements"), PayoutCents: payout, BudgetCents: budget, Deadline: r.FormValue("deadline"), Notes: r.FormValue("notes"), ViewURL: r.FormValue("view_url"), ApplyURL: r.FormValue("apply_url"), SubmitURL: r.FormValue("submit_url")}, nil
-}
-
-func redirectCampaign(w http.ResponseWriter, r *http.Request, message, errText string) {
-	target := "/campaigns?view=tracked"
-	if message != "" {
-		target += "&message=" + url.QueryEscape(message)
-	}
-	if errText != "" {
-		target += "&error=" + url.QueryEscape(errText)
-	}
-	http.Redirect(w, r, target, http.StatusSeeOther)
+	return store.CampaignInput{Platform: r.FormValue("platform"), URL: strings.TrimSpace(r.FormValue("url")), Title: r.FormValue("title"), Requirements: r.FormValue("requirements"), PayoutCents: payout, BudgetCents: budget, Deadline: r.FormValue("deadline"), Notes: r.FormValue("notes"), ViewURL: r.FormValue("view_url"), ApplyURL: r.FormValue("apply_url"), SubmitURL: r.FormValue("submit_url")}, nil
 }
 
 func (s *Server) trackCampaign(w http.ResponseWriter, r *http.Request) {
-	if !postOnly(w, r) {
-		return
-	}
-	if s.store == nil {
-		http.Error(w, "campaign storage is unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		redirectCampaign(w, r, "", "invalid form submission")
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	err := s.store.TrackCampaign(ctx, r.FormValue("id"), "", r.FormValue("notes"))
-	if err != nil {
-		redirectCampaign(w, r, "", err.Error())
-		return
-	}
-	redirectCampaign(w, r, "Campaign tracked with Interested status.", "")
+	s.campaignMutation(func(ctx context.Context, r *http.Request) (string, error) {
+		return "Campaign tracked with Interested status.", s.store.TrackCampaign(ctx, r.FormValue("id"), "", r.FormValue("notes"))
+	})(w, r)
 }
 
 func (s *Server) untrackCampaign(w http.ResponseWriter, r *http.Request) {
-	if !postOnly(w, r) {
-		return
-	}
-	if s.store == nil {
-		http.Error(w, "campaign storage is unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		redirectCampaign(w, r, "", "invalid form submission")
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	if err := s.store.UntrackCampaign(ctx, r.FormValue("id")); err != nil {
-		redirectCampaign(w, r, "", err.Error())
-		return
-	}
-	redirectCampaign(w, r, "Campaign untracked. Its source record remains available.", "")
+	s.campaignMutation(func(ctx context.Context, r *http.Request) (string, error) {
+		return "Campaign untracked. Its source record remains available.", s.store.UntrackCampaign(ctx, r.FormValue("id"))
+	})(w, r)
 }
 
 func (s *Server) setCampaignStatus(w http.ResponseWriter, r *http.Request) {
-	if !postOnly(w, r) {
-		return
-	}
-	if s.store == nil {
-		http.Error(w, "campaign storage is unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		redirectCampaign(w, r, "", "invalid form submission")
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	if err := s.store.TrackCampaign(ctx, r.FormValue("id"), r.FormValue("status"), r.FormValue("notes")); err != nil {
-		redirectCampaign(w, r, "", err.Error())
-		return
-	}
-	redirectCampaign(w, r, "Tracked campaign updated.", "")
+	s.campaignMutation(func(ctx context.Context, r *http.Request) (string, error) {
+		return "Tracked campaign updated.", s.store.TrackCampaign(ctx, r.FormValue("id"), r.FormValue("status"), r.FormValue("notes"))
+	})(w, r)
 }
 
 func (s *Server) updateCampaign(w http.ResponseWriter, r *http.Request) {
-	if !postOnly(w, r) {
-		return
-	}
-	if s.store == nil {
-		http.Error(w, "campaign storage is unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		redirectCampaign(w, r, "", "invalid form submission")
-		return
-	}
-	in, err := campaignInputFromForm(r)
-	if err != nil {
-		redirectCampaign(w, r, "", err.Error())
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	if err := s.store.UpdateManualCampaign(ctx, r.FormValue("id"), in, r.FormValue("status"), r.FormValue("notes"), r.FormValue("tracked") == "true"); err != nil {
-		redirectCampaign(w, r, "", err.Error())
-		return
-	}
-	redirectCampaign(w, r, "Campaign details saved.", "")
+	s.campaignMutation(func(ctx context.Context, r *http.Request) (string, error) {
+		in, err := campaignInputFromForm(r)
+		if err != nil {
+			return "", err
+		}
+		return "Campaign details saved.", s.store.UpdateManualCampaign(ctx, r.FormValue("id"), in, r.FormValue("status"), r.FormValue("notes"), r.FormValue("tracked") == "true")
+	})(w, r)
 }
 
 func campaignCounts(campaigns []store.Campaign, now time.Time) (available, tracked, ending int) {
 	for _, c := range campaigns {
 		if c.Tracked {
 			tracked++
-			if c.UserStatus == "Archived" {
+			if c.UserStatus == store.StatusArchived {
 				continue
 			}
 		} else {
 			available++
 		}
-		if deadlineWithinSevenDays(c.Deadline, now) {
+		if deadlineWithinSevenDays(c, now) {
 			ending++
 		}
 	}
 	return
 }
 
-func deadlineWithinSevenDays(value string, now time.Time) bool {
-	if value == "" {
+// deadlineWithinSevenDays compares calendar dates in now's location, so a
+// deadline of today counts and one eight days out does not.
+func deadlineWithinSevenDays(c store.Campaign, now time.Time) bool {
+	d, ok := c.DeadlineDate()
+	if !ok {
 		return false
 	}
-	if d, err := time.ParseInLocation("2006-01-02", value, now.Location()); err == nil {
-		day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		return !d.Before(day) && !d.After(day.AddDate(0, 0, 7))
-	}
-	d, err := time.Parse(time.RFC3339, value)
-	return err == nil && !d.Before(now) && !d.After(now.Add(7*24*time.Hour))
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	return !d.Before(today) && !d.After(today.AddDate(0, 0, 7))
 }
-func campaignDeadline(value string) (time.Time, bool) {
-	if value == "" {
-		return time.Time{}, false
-	}
-	if d, e := time.Parse("2006-01-02", value); e == nil {
-		return d, true
-	}
-	d, e := time.Parse(time.RFC3339, value)
-	return d, e == nil
-}
+
 func platformName(id string) string {
-	for _, p := range campaignPlatforms {
+	for _, p := range store.Platforms {
 		if p.ID == id {
 			return p.Name
 		}
@@ -319,47 +268,32 @@ func platformName(id string) string {
 	return "Unknown platform"
 }
 func deadlineLabel(value string) string {
-	if _, ok := campaignDeadline(value); !ok {
+	if _, ok := (store.Campaign{Deadline: value}).DeadlineDate(); !ok {
 		return "Unknown"
 	}
 	return value
-}
-func campaignTemplateFuncs() template.FuncMap {
-	return template.FuncMap{"platformName": platformName, "deadlineLabel": deadlineLabel, "money": store.FormatMoney, "moneyInput": func(v *int64) string {
-		if v == nil {
-			return ""
-		}
-		return fmt.Sprintf("%d.%02d", *v/100, *v%100)
-	}, "isManual": func(c store.Campaign) bool { return c.SourceKind == "manual" }, "hasValue": func(v string) bool { return strings.TrimSpace(v) != "" }}
 }
 
 func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request) {
 	all, err := s.campaignSnapshot()
 	if err != nil {
+		s.log.Println("list campaigns:", err)
 		http.Error(w, "campaign storage is unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	available, tracked, ending := campaignCounts(all, time.Now())
 	trackedRows := make([]store.Campaign, 0, tracked)
 	for _, c := range all {
-		if c.Tracked && c.UserStatus != "Archived" {
+		if c.Tracked && c.UserStatus != store.StatusArchived {
 			trackedRows = append(trackedRows, c)
 		}
 	}
-	sort.SliceStable(trackedRows, func(i, j int) bool {
-		return strings.ToLower(trackedRows[i].Title) < strings.ToLower(trackedRows[j].Title)
-	})
+	sort.SliceStable(trackedRows, func(i, j int) bool { return campaignLess(trackedRows[i], trackedRows[j], "title") })
 	if len(trackedRows) > 5 {
 		trackedRows = trackedRows[:5]
 	}
-	cfg, css := s.campaignConfig()
-	icon := iconURL(selectedIcon(cfg), 64)
-	data := campaignPageData{Section: "overview", BodyTheme: bodyTheme(cfg.Theme), ThemeCSS: css, IconURL: icon, SidebarHTML: renderSidebar("overview", icon), SidebarCSS: template.CSS(sidebarCSS), SidebarScript: template.JS(sidebarScript), Campaigns: trackedRows, Available: available, Tracked: tracked, EndingSoon: ending}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := overviewTemplate.Execute(w, data); err != nil {
-		s.log.Println("overview render:", err)
-	}
+	s.render(w, "overview", overviewPageData{
+		pageBase:  s.base(w, r, "Overview", "overview"),
+		Campaigns: trackedRows, Available: available, Tracked: tracked, EndingSoon: ending,
+	})
 }
-
-var campaignTemplate = template.Must(template.New("campaigns").Funcs(campaignTemplateFuncs()).Parse(campaignPageHTML))
-var overviewTemplate = template.Must(template.New("overview").Funcs(campaignTemplateFuncs()).Parse(overviewPageHTML))

@@ -1,58 +1,67 @@
-# ReelAnvil — Agent Operating Rules
+# ReelAnvil — Agent Guide
 
-**Status:** Project governance, pre-implementation. Read with `AGENTS_CHECKLIST.md`.
-**Scope:** ReelAnvil development, review, documentation, releases, and ChatGPT ↔ Work handoffs.
+Rules for any coding agent (Claude Code or otherwise) working in this repository. The maintainer directs the work and approves releases. `CLAUDE.md` adds Claude-specific notes on top of this file.
 
-## Authority and evidence
-- The latest approved `docs/REELANVIL_BUILD_STANDARDS.md` governs product and architecture. Decisions recorded there override older drafts. Never silently replace a confirmed decision with an assumption.
-- GitHub's designated branch and commit are the **authoritative verified source baseline** for ChatGPT development. The user's local repository is expected to be synchronized after Work's successful verified build and push.
-- `docs/STATUS.md` is the single current-state register. `docs/CHANGELOG.md` records user-visible changes, and `docs/BUILD_HISTORY.md` records build/test/commit outcomes. These are maintained **in place**, not multiplied into per-chat files.
-- A Library sync checkpoint records the GitHub repository/branch/SHA, documentation revision, synchronization date, and evidence; it is not itself proof of GitHub state.
-- Distinguish verified evidence, inherited context, proposed changes, and unknowns. Never claim a build, test, integration, commit, or deployment occurred without evidence.
+## Sources of truth
 
-## Development handoff and change control
-1. ChatGPT independently verifies GitHub and the Library checkpoint before source-dependent changes. No source patches against an unverified or conflicting baseline.
-2. ChatGPT prepares narrowly scoped `.patch` files and a `HANDOFF.md` with exact baseline SHA, purpose, affected paths, prerequisites, test instructions, risks, expected results, and rollback guidance. Supply hashes/manifest where useful.
-3. Work applies patches to the local repository, inspects diffs, builds, runs relevant tests, performs real deployment/SSH checks where authorized, and reports failures. No claiming success based only on a patch or compilation.
-4. Only after a successful **verified** build does Work commit and push to GitHub. It returns the branch, commit SHA, test/build evidence, and a ZIP of actual committed changes/logs for review.
-5. ChatGPT checks the returned evidence and GitHub SHA, then updates `docs/STATUS.md`, `docs/CHANGELOG.md`, `docs/BUILD_HISTORY.md`, and the Library checkpoint as appropriate. A generated patch or unpushed local build is **not** completed work.
-6. Do not overwrite unrelated local changes, secrets, user data, or generated media. Escalate discrepancies before proceeding. Failed attempts belong in build history/status where relevant, not the release changelog.
+- **Product and architecture:** [`docs/REELANVIL_BUILD_STANDARDS.md`](docs/REELANVIL_BUILD_STANDARDS.md). Decisions recorded there win over assumptions. If a change would contradict one, stop and ask.
+- **Current state:** [`docs/STATUS.md`](docs/STATUS.md): what exists, what's next, open blockers.
+- **What changed:** [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for user-visible changes; [`docs/BUILD_HISTORY.md`](docs/BUILD_HISTORY.md) for what was built, tested and pushed.
+- **Code:** the local checkout at `/home/katala/Projects/ReelAnvil` is the working copy; GitHub (`gkuba/ReelAnvil`) is the shared mirror. Don't claim something was built, tested, committed or pushed unless you actually did it and saw it succeed.
 
-## Local Work build, deployment, and GitHub handoff
-- The local checkout at `/home/katala/Projects/ReelAnvil` is the authoritative working source. GitHub `main`/`dev` branches are mirrors and shared checkpoints for Chat; the Chat Global Library is a separate verified copy. The maintainer directs work and approves releases.
-- Before source changes, inspect the working tree and preserve a dated source snapshot/manifest when the change warrants recovery. Never overwrite unrelated or uncommitted work. Keep generated build/test output out of maintained source and commits unless explicitly required.
-- Build and validate locally, preserve relevant logs and artifact hashes outside the maintained source, and distinguish source review, compilation, automated tests, deployment, and user validation. Never claim a later stage from an earlier one.
-- Remote deployment or installation is performed only after the maintainer explicitly authorizes access. Do not copy builds to a live host or install them there before that authorization.
-- Push only the verified commit to the intended GitHub branch after confirming its destination and branch state. GitHub is a mirror/checkpoint, not the local source of truth.
-- **After every GitHub push, prepare a complete commit ZIP and handoff for the maintainer to give Chat.** Store these under `/home/katala/Documents/ChatGPT Outputs/ReelAnvil/deliverables/`. Include the exact pushed tracked tree as a ZIP, a SHA-256 checksum for the ZIP, a per-file manifest with paths/sizes/Git blob IDs and SHA-256 values, and a `HANDOFF.md` identifying repository, branch, full commit SHA, tracked-file count, ZIP checksum, scope, and honest build/test/deployment evidence. Verify ZIP integrity and local commit/tree identity before delivery. Do this for development pushes as well as release pushes.
-- Keep only the current package in `deliverables/`; move prior complete packages together into `deliverables/archive/`. Retain the previous five revisions. Before pruning an older revision, verify the current package and five newest archives are intact; never delete ambiguous or irreplaceable evidence.
-- Release builds, squash/merge to `main`, and creation of the next `dev` branch follow the maintainer's approved release workflow. Development build/push does not itself authorize deployment, release, or publication.
+## Branches and releases
+
+- Day-to-day work happens on **`dev`** (or a short-lived feature branch merged into `dev`).
+- A release **squash-merges `dev` into `main`**, then a fresh `dev` is started from the new `main`.
+- Commit and push only when the maintainer asks. Never push to `main`, tag a release, or rewrite a shared branch without explicit approval for that specific action.
+- The ChatGPT-era history (Builds 0.1–0.9.1) is preserved at tag `archive/chatgpt-build-0.9.1`.
+
+## Build, test, and run
+
+From the repository root:
+
+```sh
+gofmt -l .                 # must print nothing
+go vet ./...
+go test -race ./...
+go mod verify
+./scripts/build-dev.sh     # builds bin/Release/reelanvil with a version stamp
+```
+
+The maintainer tests by running the binary from `bin/Release`:
+
+```sh
+cd bin/Release && ./reelanvil serve      # http://127.0.0.1:8080, Ctrl+C to stop
+```
+
+- **`bin/Release/settings/`, `data/` and `logs/` are the maintainer's real data.** The build script replaces only the executable. Never write test data there. For browser or migration testing, copy the runtime to a scratch directory and use `./reelanvil serve --data-dir <copy> --addr 127.0.0.1:18089`.
+- Before a change that migrates data, keep a copy of `bin/Release` until the maintainer confirms the new build works.
+- CI (`.github/workflows/ci.yml`) runs the same checks plus govulncheck and staticcheck on pushes to `dev`/`main` and on PRs.
+
+## Before calling a change done
+
+1. Formatting, vet, race tests and the build pass.
+2. New behaviour has tests; bug fixes have a regression test.
+3. UI changes were checked in a browser at desktop and phone widths (no horizontal page scroll), against a scratch data directory.
+4. `docs/CHANGELOG.md` (user-visible) and `docs/BUILD_HISTORY.md` (build/test/push record) are updated; `docs/STATUS.md` if the current state or next step changed.
+5. The summary to the maintainer says plainly what was verified and what wasn't.
 
 ## Engineering boundaries
-- One Go codebase, separate `reelanvil serve`, `reelanvil worker`, `reelanvil doctor` processes (names provisional); web server never receives Docker socket access. Narrow Docker API access belongs only to authenticated worker.
-- Debian 13 Linux-first; Windows/macOS experimental until tested. SQLite persistent state; explicit migrations, backup and recovery.
-- Upstream-only Docker images, pinned after validation; no custom images, no bundled third-party containers, standalone executables, or model weights. Audit compiled Go/frontend dependencies.
-- Media ingestion must be authorized; originals preserved; isolation by job ID; human approval before posting; AI candidate selection and independent AI review have separate contexts.
-- Real stage progress, elapsed time and logs; **never show ETA** or fabricated percentages. Storage caps and reservation accounting must block jobs safely instead of silently deleting data.
-- Full browser-configurable onboarding, diagnostics, services, queue, review, campaigns, storage, backups, and responsive themed UI. Aurora Nordic-industrial design is foundational, not an optional polish pass.
-- No required paid runtime services; no claims of guaranteed earnings. No private credentials or campaign/media content in public source, logs, examples, or release archives.
 
-## Documentation and release packaging
-- Repository root documentation exceptions: `AGENTS.md` and `AGENTS_CHECKLIST.md` only. All other documentation belongs in `docs/` (including build standards, status, history, architecture, design, installation and release guides).
-- All licensing files belong in `docs/licensing/` and **must be packaged in every distributed release**: `LICENSE`, `LICENSING.md`, `THIRD_PARTY_NOTICES.md`, `TRADEMARKS.md`, plus any dependency-specific notices required by audit. License copyright holder remains to be confirmed before release.
-- Other `docs/` materials (including `STATUS.md`, `CHANGELOG.md`, `BUILD_HISTORY.md`, design notes, internal handoff records, build standards) are **not** bundled in runtime release artifacts. Publish appropriate user docs on GitHub/Pages separately if desired.
-- Packaging must have an explicit allowlist and automated assertions: required license files present; internal status/history, secrets, logs, databases and media absent. License audit and release verification are mandatory gates.
-- Preserve existing file history in Git; do not create duplicate per-build status or history documents. Update the current files and commit them with successful verified changes.
+- One Go module. Separate processes: `reelanvil serve`, later `reelanvil worker`; `reelanvil doctor` for diagnostics. The web server never gets Docker socket access; only the authenticated worker talks to Docker.
+- Debian 13 / Linux first. Windows and macOS are untested and must not be claimed as supported.
+- SQLite for persistent state, with ordered, transactional migrations in `internal/store/store.go`. Refuse unknown future schema versions. Never silently delete user data.
+- **The server is unauthenticated and must stay loopback-only.** Keep the Host check, same-origin POST checks, body cap, timeouts and security headers. Keep the CSP free of `unsafe-inline`: no inline `<script>`, `<style>` or `style=""` in templates (a test enforces this).
+- The web UI lives in `internal/app/web/` (embedded templates, `app.css`, `app.js`). Built-in theme palettes are Go data in `internal/app/themes.go`; don't hard-code colours in CSS — use the theme tokens.
+- Upstream Docker images only, pinned after validation; no custom images, bundled third-party binaries or model weights.
+- Media ingestion must be authorized, originals preserved, jobs isolated by ID, and a human approves anything before it is posted. AI clip selection and independent AI review run in separate contexts.
+- Real stage progress, elapsed time and logs; **never show an ETA** or invented percentages. Storage caps block jobs safely instead of deleting data.
+- No required paid runtime services, no guaranteed-earnings claims, and no credentials, campaign data or media in source, logs, examples or release archives. Campaign discovery stays disabled until a platform's public API and permitted use are verified.
+- No remote deployment or installation on another host without the maintainer's explicit approval.
 
-## Startup discipline
-- New development chats first provide an initial categorized confidence report **before** reading project sources, then fully read both agent files and execute the checklist, then report updated categorized confidence and verification results.
-- Initialization is read-only. Missing docs, inaccessible GitHub, absent repository/checkpoint or unverified local sync must be stated plainly. Discussion may proceed; source-dependent patching must wait for verified baseline.
-- `/ReelAnvil/` is the ChatGPT Global Library folder for this project. Library copies mirror decisions and checkpoints; GitHub remains authoritative for code.
+## Documentation and packaging
 
-## Deliverables and archive retention
-- Store the **current** ChatGPT-to-Work handoff package in Global Library `/ReelAnvil/deliverables/`; move prior completed/superseded handoffs into `/ReelAnvil/deliverables/archive/`.
-- A revision means one complete handoff package (patches, HANDOFF instructions, manifests and supporting evidence), **not** each individual file.
-- Retain at most **five older handoff revisions** in the project archive. Before pruning a sixth, confirm the current handoff and newer archived revisions are preserved. Delete only verified superseded handoff packages, never source history, build history, project documentation or irreplaceable evidence.
-- If exported/linked deliverables appear at the Global Library root, organize ReelAnvil copies under `/archive/ReelAnvil/`, likewise retaining at most five older handoff revisions there.
-- Provide a usable downloadable handoff file/attachment separately; a Global Library path alone is not a download link.
-- Keep these folders clean as part of every new handoff, report any move/delete restrictions, and do not silently delete ambiguous files.
+- Root documentation: `README.md`, `AGENTS.md`, `CLAUDE.md`. Everything else goes in `docs/`.
+- Licensing files live in `docs/licensing/` and ship with every release. Other `docs/` content is not bundled into runtime release artifacts.
+- Release packaging uses an explicit allowlist with automated checks: license files present; status/history docs, secrets, logs, databases and media absent. The license audit and copyright holder are release gates.
+- Maintain `STATUS.md`, `CHANGELOG.md` and `BUILD_HISTORY.md` in place; don't create per-build copies.

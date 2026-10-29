@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"net/http"
 	"path"
-	"strings"
 )
 
 // Branding assets are local and embedded so the server never fetches artwork or icons.
@@ -18,6 +17,8 @@ type IconOption struct {
 	ID, Name, PreviewURL string
 	Selected             bool
 }
+
+const defaultIcon = "blue-violet"
 
 var iconVariants = []IconOption{
 	{ID: "blue-violet", Name: "Blue-Violet Film Glow"},
@@ -38,7 +39,7 @@ func selectedIcon(cfg Settings) string {
 	if validIconVariant(cfg.IconVariant) {
 		return cfg.IconVariant
 	}
-	return "blue-violet"
+	return defaultIcon
 }
 
 func iconOptions(variant string) []IconOption {
@@ -82,10 +83,10 @@ func (s *Server) favicon(w http.ResponseWriter, r *http.Request) {
 
 func iconURL(variant string, size int) string {
 	if !validIconVariant(variant) {
-		variant = "blue-violet"
+		variant = defaultIcon
 	}
 	if size != 16 && size != 32 && size != 48 && size != 64 && size != 128 && size != 256 && size != 512 {
 		size = 64
 	}
-	return "/assets/branding/icon-" + strings.TrimSpace(variant) + fmt.Sprintf("-%d.png", size)
+	return fmt.Sprintf("/assets/branding/icon-%s-%d.png", variant, size)
 }

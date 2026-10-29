@@ -1,0 +1,14 @@
+{{define "content"}}
+{{template "devbar" .}}
+<h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5m8-5v5M5 8h14v3a7 7 0 0 1-14 0V8zm7 10v4"/></svg> Connectors</h1>
+<p>External services and integrations will be configured here.</p>
+<div class="card narrow-fields">
+<h2>Connector configuration</h2>
+<label for="connector-endpoint">Service endpoint</label>
+<input id="connector-endpoint" disabled placeholder="Not yet configurable">
+<label for="connector-key">API credential</label>
+<input id="connector-key" disabled placeholder="Not yet configurable">
+<p>Connectors are not implemented. No connection is attempted or saved.</p>
+</div>
+<footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
+{{end}}

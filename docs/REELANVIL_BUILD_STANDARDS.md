@@ -1,8 +1,8 @@
 # ReelAnvil — Build Standards, Architecture & Product Guidelines
 
-**Document version:** 0.3 (public distribution, licensing, installation and branding decisions)  
+**Document version:** 0.4 (development workflow moved to Claude Code; built-in theme list updated)  
 **Captured:** 2026-10-27  
-**Updated:** 2026-10-27  
+**Updated:** 2026-10-29  
 **Status:** Baseline specification for repository initialization; not an implementation claim  
 **Primary target:** Debian 13, Linux, headless/self-hosted  
 **Product benchmark:** A polished, Sonarr/SickBeard-style self-hosted application
@@ -15,7 +15,7 @@
 ReelAnvil uses the approved Nordic-industrial concept as its **foundational design direction**, not a late-stage cosmetic addition. See `ReelAnvil_Brand_UI_Concept_v1.png` and `ReelAnvil_Theme_Directions_v1_1.md` in the same project folder. Implement shared design tokens and components from the initial application foundation.
 
 - **Aurora** is the intended default: near-black/midnight navy surfaces, purple and periwinkle/blue accents, soft restrained glows, and steel-blue boundaries.
-- Preserve **Dark**, **Slate**, and experimental **Pastel Aurora** as theme variants.
+- Built-in themes (Build 0.9.2): **Aurora**, **Dracula**, **Tomorrow Night**, **Nocturne** and **Foundry**, plus user-made custom themes. Saved selections of the earlier Dark, Slate, Tokyo Night and Pastel themes switch to these automatically.
 - Nordic influence should be subtle and contemporary: craftsmanship, steel, anvil/reel geometry, not a medieval novelty UI.
 - Apply consistent styling to all real screens: dashboard, expandable job detail, library, campaigns, first-run wizard, services, diagnostics, settings, errors, and storage controls.
 - Concept artwork is a visual reference, **not** a pixel-perfect functional specification. Functional states, genuine progress, elapsed time without ETA, accessibility, and usability take precedence over illustrative mockup content.
@@ -23,7 +23,7 @@ ReelAnvil uses the approved Nordic-industrial concept as its **foundational desi
 ## 1. Product principles and non-negotiables
 
 1. **Finished-product experience.** ReelAnvil must feel like an installed self-hosted application, not scripts with a thin web front end. Navigation, configuration, onboarding, diagnostics, errors, progress, and recovery are first-class features.
-2. **Zero incremental paid dependencies.** No mandatory paid AI APIs, subscriptions, proprietary licenses, or additional hardware. Existing ChatGPT access is a development aid only, never a runtime dependency.
+2. **Zero incremental paid dependencies.** No mandatory paid AI APIs, subscriptions, proprietary licenses, or additional hardware. AI coding assistants are development aids only, never runtime dependencies.
 3. **Linux-first, portable by design.** Officially build and validate on Linux initially (Debian 13 first). Generalize code for Windows and macOS; expose clearly labeled experimental OS-specific settings/help where useful, but **do not claim those platforms are supported** until tested.
 4. **One Go codebase and release.** The web application and media worker are separate **processes**, not separate projects or separately maintained releases. Proposed commands: `reelanvil serve`, `reelanvil worker`, `reelanvil doctor` (command names subject to final CLI design).
 5. **Established upstream media/AI containers.** Prefer maintained, widely used images for Ollama, LinuxServer.io faster-whisper, and a combined yt-dlp + FFmpeg/ffprobe environment. **Do not maintain a custom media container image.** Pin tested image versions/digests; validate platform architectures and capabilities before selection.
@@ -401,7 +401,7 @@ Persist job state in SQLite and define explicit allowed transitions. Job cancell
 
 | Phase | Primary output | Minimum acceptance |
 |---|---|---|
-| 0. Governance | Repo structure, source-of-truth rules, agent documents | Verified baseline and handoff protocol before coding |
+| 0. Governance | Repo structure, source-of-truth rules, agent documents | `AGENTS.md`/`CLAUDE.md`, CI, and branch workflow in place |
 | 1. Foundation | Go server, SQLite, config, migrations, service interfaces | Launches on Debian; persistent settings; tests pass |
 | 2. Finished-feeling UI shell | Overview, settings, wizard, media library, jobs, reviews | Consistent design; functional navigation; clearly labeled mock adapters |
 | 3. Library + quotas + workflow | Scan/import, path mapping, file inventory, quota reservations, job state | Finds manually placed media; accurate counts; safe quota block/recovery |
@@ -412,19 +412,14 @@ Persist job state in SQLite and define explicit allowed transitions. Job cancell
 
 **Sequencing decision:** Prioritize the dashboard and core application first. **Define the worker API contracts early**, but implement the actual worker/container integration after the majority of the first-pass app/UI is ready. Do not let this sequence create a fake sense that mocks are production features.
 
-## 11. Source-of-truth and agent handoff governance
+## 11. Source of truth and development workflow
 
-The user requires the **same strict governance pattern** used for their existing Nivalis Body Swap project, adapted to ReelAnvil. Exact rules must be copied/verified from that project's actual documents when supplied; do not invent their contents.
-
-1. **Primary authority:** user's local Git repository under `Projects/`.
-2. **Secondary verification:** pushed GitHub commit/repository.
-3. **ChatGPT Global Library:** validated mirror, **not a live development workspace**.
-4. At each development task, copy Library baseline into a **disposable local build workspace**; never patch or test directly inside the Library copy.
-5. ChatGPT produces patches, `HANDOFF.md`, manifests/hashes, tests and instructions; user's local Work node applies/builds/deploys/tests on Debian using configured SSH.
-6. After verified deployment, Work commits/pushes and returns a **summary ZIP of actual committed changes**, docs, logs, and commit identity (not the entire repository).
-7. ChatGPT applies returned changes to a temporary copy of its baseline, verifies reconstructed tree/files against GitHub commit, and **only then** updates the Global Library. Stop and investigate on mismatch.
-8. Repository must include **`AGENTS.md`** and **`AGENTS_CHECKLIST.md`** with referenced mandatory docs. On new-agent/new-chat startup: report an **initial confidence level immediately**, then read **all** required docs in full (no skimming/assumption), verify GitHub/Library baseline, and report a **new confidence level** based on verified context.
-9. Do not claim a repository, documents, GitHub commit, or validated baseline exists until actually created and verified.
+1. **Primary authority:** the maintainer's local Git repository under `Projects/`.
+2. **Shared mirror:** GitHub `gkuba/ReelAnvil`. `dev` carries development; a release squash-merges `dev` into `main`, and a fresh `dev` is then started from `main`.
+3. Development happens directly in the repository, with a coding agent (currently Claude Code) working alongside the maintainer. The agent edits, tests, builds `bin/Release` and reports what was verified. The maintainer reviews the running build and approves commits, pushes and releases. The rules are in `AGENTS.md`; Claude-specific notes are in `CLAUDE.md`.
+4. Independent review comes from the maintainer's own testing, CI, and a fresh-context code review of the branch before a release, not from patch or ZIP handoffs.
+5. Builds 0.1–0.9.1 were produced through a ChatGPT patch-and-handoff process. That history is preserved at tag `archive/chatgpt-build-0.9.1`.
+6. Never claim a build, test, commit, push or deployment happened without evidence.
 
 ## 12. Open questions and decisions NOT yet finalized
 
@@ -437,7 +432,6 @@ The user requires the **same strict governance pattern** used for their existing
 7. Which faster-whisper model and Ollama models meet CPU-only quality/performance targets on SER6.
 8. Detailed campaign eligibility, social platform submission rules, source licensing, and payout tracking integrations.
 9. When Windows/macOS experimental builds become available; no commitment to support yet.
-10. Exact `AGENTS.md` / `AGENTS_CHECKLIST.md` source content from existing project, which must be supplied/reviewed before initialization.
 
 ## 13. Definition of done for any user-facing feature
 

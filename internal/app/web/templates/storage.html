@@ -1,0 +1,18 @@
+{{define "content"}}
+{{template "devbar" .}}
+<h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 12h18"/><circle cx="17" cy="16" r="1"/></svg> Paths &amp; Storage</h1>
+<p>Media and processing directories will be configured here.</p>
+<div class="card narrow-fields">
+<h2>Storage locations</h2>
+<label for="data-path">Data directory (current)</label>
+<input id="data-path" disabled value="{{.DataDir}}">
+<label for="media-path">Media library</label>
+<input id="media-path" disabled placeholder="Not yet configurable">
+<label for="temp-path">Temporary workspace</label>
+<input id="temp-path" disabled placeholder="Not yet configurable">
+<label for="output-path">Output directory</label>
+<input id="output-path" disabled placeholder="Not yet configurable">
+<p>The data directory is set with <code>reelanvil serve --data-dir</code>. Media paths are placeholders and cannot be saved yet.</p>
+</div>
+<footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
+{{end}}

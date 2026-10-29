@@ -30,7 +30,7 @@ Build 0.4's happy-path duplicate/edit/save/refresh and active-theme persistence 
 
 ## Theme manager and UI regression
 
-- [ ] **Not Tested — Pre-release:** Duplicate and collision-generated IDs remain valid and unique at boundary lengths; reserved built-in IDs cannot be overwritten.
+- [x] **Unit-tested in B0.9.2:** Duplicate and collision-generated IDs stay valid and unique at boundary lengths, and copy names stay within 64 characters; reserved built-in IDs are rejected by validation.
 - [ ] **Not Tested — Pre-release:** UI rejects malformed hex, missing colors, empty/oversized/newline names, and invalid edits without changing the saved theme.
 - [ ] **Not Tested — Pre-release:** Cancel restores every saved field and does not persist draft data; Save persists all fields and survives reload/restart.
 - [ ] **Not Tested — Pre-release:** Refreshing manually edited valid JSON updates available themes, active theme styling, editor fields, and backup consistently.
@@ -44,6 +44,6 @@ Build 0.4's happy-path duplicate/edit/save/refresh and active-theme persistence 
 - [x] **B0.7 unit-tested:** Default and configured listener addresses are restricted to loopback; non-loopback bind attempts fail.
 - [ ] **Not Tested — Pre-release:** Network access may be enabled only after authentication, authorization, CSRF, TLS/termination, and explicit threat review are complete.
 
-## Deferred B0.7.1 theme acceptance
+## Theme acceptance across restart
 - [ ] Custom theme edit/save/reload survives restart.
 - [ ] Applied theme and duplicate persist across restart.

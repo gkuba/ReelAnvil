@@ -1,0 +1,36 @@
+{{define "content"}}
+<section class="hero"><img src="/assets/branding/overview-mountain.png" alt="Purple mountain peaks beneath a starry sky reflected in a lake"><div class="hero-copy"><div class="eyebrow">Your campaign workspace</div>
+<h1>Make every frame count.</h1>
+<p>Keep campaign details and deadlines in view. Add and track campaigns manually while platform discovery integrations remain unavailable.</p>
+<a class="btn" href="/campaigns">Open Campaigns</a></div>
+</section>
+<section class="stats" aria-label="Campaign summary"><div class="card metric-card"><h2>Available</h2>
+<div class="metric">{{.Available}}</div>
+<small>Known source records not tracked</small></div>
+<div class="card metric-card"><h2>Tracked</h2>
+<div class="metric">{{.Tracked}}</div>
+<small>Campaigns in your local list</small></div>
+<div class="card metric-card"><h2>Ending Soon</h2>
+<div class="metric">{{.EndingSoon}}</div>
+<small>Known deadlines within 7 days</small></div>
+</section>
+<section class="card tracked-preview"><div class="page-top"><div><div class="eyebrow">Your current list</div>
+<h2>Tracked campaigns</h2>
+</div>
+<a class="btn secondary small" href="/campaigns?view=tracked">View all</a></div>
+{{if .Campaigns}}<div class="table-wrap"><table class="table"><thead><tr><th>Campaign</th>
+<th>Platform</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>{{range .Campaigns}}<tr><td><strong>{{.Title}}</strong><small>{{deadlineLabel .Deadline}}</small></td>
+<td>{{platformName .Platform}}</td>
+<td><span class="badge status">{{.UserStatus}}</span></td>
+</tr>
+{{end}}</tbody>
+</table>
+</div>
+{{else}}<div class="empty-inline">No campaigns are tracked yet. Add one manually to get started.</div>
+{{end}}</section>
+<footer>ReelAnvil · Local-only prototype · No external campaign data is being fetched</footer>
+{{end}}

@@ -1,0 +1,71 @@
+{{define "content"}}
+{{template "devbar" .}}
+<h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h2a2 2 0 0 0 1-3.7 2 2 0 0 1 1-3.7h2a3 3 0 0 0 3-3A9 9 0 0 0 12 3z"/><circle cx="7" cy="11" r="1"/><circle cx="12" cy="7" r="1"/></svg> Themes</h1>
+<p>These settings are saved to <code>settings/config.json</code> in the data directory.</p>
+{{template "flash" .}}
+<div class="card narrow-fields">
+<form method="post" action="/settings">
+<input type="hidden" name="theme_page" value="1">
+<input type="hidden" name="instance_name" value="{{.Config.InstanceName}}">
+<label for="theme">Interface theme</label>
+<select id="theme" name="theme">
+{{range .AllThemes}}<option value="{{.ID}}" data-body-class="{{bodyTheme .ID}}"{{if eq $.Config.Theme .ID}} selected{{end}}>{{.Name}}</option>
+{{end}}</select>
+<div class="theme-preview" aria-live="polite">
+<strong>Live theme preview</strong>
+<div class="sample live" aria-label="Theme preview swatches in order: Background, Sidebar, Panels / Tiles, Primary Accent, Secondary Accent, Tertiary Accent, Quaternary Accent"><div class="swatch" title="Background"></div><div class="swatch" title="Sidebar"></div><div class="swatch" title="Panels / Tiles"></div><div class="swatch" title="Primary Accent"></div><div class="swatch" title="Secondary Accent"></div><div class="swatch" title="Tertiary Accent"></div><div class="swatch" title="Quaternary Accent"></div></div>
+<small>Swatches: Background · Sidebar · Panels / Tiles · Primary · Secondary · Tertiary · Quaternary. Preview applies immediately; save settings to keep it.</small>
+</div>
+<fieldset class="icon-picker">
+<legend>Application icon</legend>
+<p class="muted">This global choice stays the same when you switch interface themes.</p>
+<div class="icon-options">
+{{range .IconOptions}}<label class="icon-choice"><input type="radio" name="icon_variant" value="{{.ID}}"{{if .Selected}} checked{{end}}><img src="{{.PreviewURL}}" alt=""><span>{{.Name}}</span></label>
+{{end}}</div>
+</fieldset>
+<div class="actions end">
+<button type="submit" class="secondary" form="refresh-themes"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.8 9A7 7 0 0 1 18 6l2 6M4 12l2 6a7 7 0 0 0 12.2-3"/></svg>Refresh Themes</button>
+<button type="submit"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v7h10V3M7 21v-8h10v8"/></svg>Save Settings</button>
+</div>
+</form>
+</div>
+
+<div class="card">
+<h2><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21l6-2 11-11-4-4L5 15zM14 6l4 4"/></svg> Theme Manager</h2>
+<p>Built-in themes are read-only. Duplicate a theme to customize it. Manual themes live in <code>settings/themes.json</code>.</p>
+{{if .ThemeError}}<div class="note error" role="alert"><strong>Theme configuration error:</strong> {{.ThemeError}}<p>Built-in themes remain available. A valid last-known-good backup is used when available. The invalid file is preserved. Theme saving is disabled until you correct it and refresh.</p></div>
+{{end}}
+<form method="post" action="/themes/refresh" id="refresh-themes"></form>
+<form method="post" action="/themes/duplicate">
+<label for="clone-source">Duplicate a theme</label>
+<div class="inline-actions">
+<select name="source" id="clone-source">
+{{range .AllThemes}}<option value="{{.ID}}">{{.Name}}</option>
+{{end}}</select>
+<button type="submit"{{if .ThemeError}} disabled{{end}}>Duplicate Theme</button>
+</div>
+</form>
+<form method="post" action="/themes/save" id="theme-editor">
+<label for="custom-id">Custom theme</label>
+<select id="custom-id" name="id">
+{{range .Themes}}<option value="{{.ID}}"{{if eq $.EditID .ID}} selected{{end}}>{{.Name}}</option>
+{{end}}</select>
+{{if .EditID}}<label for="custom-name">Theme name</label>
+<input id="custom-name" name="name" required maxlength="64" value="{{.EditTheme.Name}}">
+<div class="color-grid">
+{{range .EditColors}}<div class="color-item"><label for="color-{{.Key}}">{{.Label}}</label><div class="color-field"><span class="color-chip"></span><input id="color-{{.Key}}" name="{{.Key}}" value="{{.Value}}" maxlength="7" pattern="#[0-9a-fA-F]{6}" required></div></div>
+{{end}}</div>
+<div class="theme-preview" id="custom-preview">
+<strong>Unsaved preview</strong>
+<div class="sample" id="custom-swatches" aria-hidden="true"></div>
+<small>Preview changes do not affect the application until Save Changes.</small>
+</div>
+<div class="actions end">
+<button type="button" class="secondary" id="theme-cancel"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg>Cancel</button>
+<button type="submit" id="theme-save"{{if .ThemeError}} disabled{{end}}><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v7h10V3M7 21v-8h10v8"/></svg>Save Changes</button>
+</div>
+{{else}}<p>Duplicate a theme to create your first editable copy.</p>
+{{end}}</form>
+</div>
+<footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
+{{end}}
