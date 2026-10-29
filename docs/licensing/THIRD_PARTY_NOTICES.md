@@ -10,6 +10,7 @@ External software is owned and licensed by its respective authors. Referencing i
 
 | Component | Integration/distribution approach | License verification |
 | --- | --- | --- |
+| modernc.org/sqlite v1.36.3 and runtime Go modules | Pure-Go SQLite driver linked into the ReelAnvil binary; versions are pinned in `go.mod` and `go.sum` | Initial source review completed for B0.8; compiled modules include BSD-style and MIT notices. Preserve applicable copyright/license text in distributed binary materials; complete automated license inventory before release. |
 | Ollama | Pull official upstream container or connect to an existing endpoint | Pending version-specific audit |
 | faster-whisper / Wyoming service | Pull a validated upstream container | Pending image and dependency audit |
 | FFmpeg | Obtain from an upstream package/image | Pending build/license audit |
