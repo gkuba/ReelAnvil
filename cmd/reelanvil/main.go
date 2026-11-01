@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/gkuba/ReelAnvil/internal/app"
 )
@@ -55,7 +56,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "unexpected arguments:", flags.Args())
 		os.Exit(2)
 	}
-	if err := run(opts); err != nil {
+	err := run(opts)
+	if errors.Is(err, app.ErrRestart) {
+		err = app.Reexec()
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "reelanvil:", err)
 		os.Exit(1)
 	}
@@ -66,7 +71,14 @@ func main() {
 func newFlags(command string, opts *app.Options) *flag.FlagSet {
 	flags := flag.NewFlagSet("reelanvil "+command, flag.ContinueOnError)
 	flags.StringVar(&opts.DataDir, "data-dir", envOr("REELANVIL_DATA_DIR", "."), "directory holding settings/, data/ and logs/ (env REELANVIL_DATA_DIR)")
-	flags.StringVar(&opts.Addr, "addr", envOr("REELANVIL_ADDR", app.DefaultAddr), "loopback address to listen on (env REELANVIL_ADDR)")
+	flags.StringVar(&opts.Addr, "addr", os.Getenv("REELANVIL_ADDR"), "host:port to listen on for this run, overriding Settings > General (default "+app.DefaultAddr+"; env REELANVIL_ADDR)")
+	flags.Func("allowed-hosts", "comma-separated extra host names for this run, overriding Settings > General (env REELANVIL_ALLOWED_HOSTS)", func(v string) error {
+		opts.AllowedHosts = append([]string{}, splitList(v)...)
+		return nil
+	})
+	if v, ok := os.LookupEnv("REELANVIL_ALLOWED_HOSTS"); ok {
+		opts.AllowedHosts = append([]string{}, splitList(v)...)
+	}
 	return flags
 }
 
@@ -75,6 +87,16 @@ func printUsage(w io.Writer) {
 	flags := newFlags("serve", &app.Options{})
 	flags.SetOutput(w)
 	flags.PrintDefaults()
+}
+
+func splitList(v string) []string {
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func envOr(name, fallback string) string {

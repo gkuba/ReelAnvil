@@ -1,6 +1,6 @@
 # ReelAnvil security requirements
 
-Security applies even to loopback and internal deployments. The current prototype is unauthenticated and loopback-only; do not expose it to a LAN, proxy, tunnel, or public network.
+Security applies even to loopback and internal deployments. The current prototype is unauthenticated. It listens on `0.0.0.0:8080` by default for trusted-LAN use (configurable in Settings → General → Network, or loopback-only with `127.0.0.1`), but it must never be exposed to the internet through port forwarding, a tunnel or a public proxy.
 
 ## Secrets and integrations
 
@@ -15,13 +15,14 @@ Security applies even to loopback and internal deployments. The current prototyp
 - Preserve same-origin and CSRF defenses for every state-changing request; never disable a security check to fix a form bug. Confirm real browser request headers and add targeted tests before changing validation.
 - Escape all untrusted HTML and attributes, avoid unsafe template rendering, validate input, keep the CSP restrictive, and defend against XSS, clickjacking, path traversal, unsafe uploads, SSRF and untrusted connector responses.
 - Show users validation messages only; log internal database and I/O errors instead of displaying them.
-- Maintain request limits, secure cookies when sessions are introduced, timeouts and restrictive response headers. Require authentication and authorization before expanding beyond loopback.
+- Maintain request limits, secure cookies when sessions are introduced, timeouts and restrictive response headers. Require authentication and authorization before any deployment beyond a trusted LAN.
 - Add automated secret scanning to local pre-commit/pre-push and CI; scan source, fixtures, generated outputs and release archives. `.gitignore` alone is not a control. Treat any committed secret as compromised: revoke or rotate it, and assess Git history and downstream copies.
 - Audit dependencies and pinned external integrations. Document threat models, negative tests and recovery checks before production deployment.
 
 ## Current controls
 
-- Listener refuses non-loopback addresses; requests with a non-local `Host` are rejected (DNS-rebinding defense).
+- Listener defaults to `0.0.0.0:8080`; any non-loopback address prints and logs a no-authentication warning. Saved addresses must be IP literals or `localhost` (no DNS); a restart refuses an address it cannot bind, so the server never stops without a replacement.
+- Host check (DNS-rebinding defense): a loopback server accepts only `localhost` and loopback IPs; a LAN server also accepts IP literals, the machine's host name and the allowed host names (Settings, or `--allowed-hosts`). Any other `Host` gets `421`.
 - POSTs must be same-origin by Fetch Metadata and by Origin/Referer; `Origin: null` is accepted only with `Sec-Fetch-Site: same-origin`. Bodies are capped at 1 MiB.
 - Headers: `Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`, plus `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`.
 - Templates, CSS, JS and branding are embedded in the binary; nothing is fetched from other hosts. A test fails if a template contains inline scripts or styles.
@@ -34,7 +35,9 @@ Security applies even to loopback and internal deployments. The current prototyp
 - [x] Every settings-changing POST route (including General and custom-theme editing): same-origin requests succeed; foreign-origin requests are blocked without state changes.
 - [x] Cross-site, same-site-but-not-same-origin, mismatched Origin/Referer and mismatched ports are rejected without state changes.
 - [x] Security headers and CSP checked in the browser; no `unsafe-inline`.
-- [ ] Add a CSRF token strategy before any authenticated or LAN deployment.
+- [x] Network settings and restart are POST-only and go through the same-origin checks; cross-origin saves are rejected (unit tests).
+- [x] LAN Host policy: IP literals and listed names accepted only when not on loopback; foreign names rejected (unit tests).
+- [ ] Add authentication and a session-bound CSRF token strategy; LAN use is unauthenticated until then.
 - [ ] XSS tests cover custom theme names and external provider metadata (campaign titles are covered).
 - [ ] Credential storage, redaction, session expiry/revocation, and secret scanning have automated tests before connectors ship.
 

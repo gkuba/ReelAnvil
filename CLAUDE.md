@@ -8,7 +8,7 @@
 - **Browser checks:** run a scratch copy of the runtime on `127.0.0.1:18089` with `--data-dir`; the maintainer's own server normally uses `:8080`. Check desktop width and the 375px mobile preset.
 - **Feel of the project:** a finished-feeling, Sonarr-style self-hosted app with a Nordic-industrial dark UI (see `docs/design/`). Keep pages visually consistent — reuse the shared layout, `.card`, `.stats`, `.note`, `.btn` patterns and theme tokens rather than adding page-specific styling.
 - **Where things are:**
-  - `cmd/reelanvil/` — CLI (`serve`, `doctor`, `version`; flags `--data-dir`, `--addr`)
+  - `cmd/reelanvil/` — CLI (`serve`, `doctor`, `version`; flags `--data-dir`, `--addr`, `--allowed-hosts`); network settings and restart in `internal/app/network.go`
   - `internal/app/` — HTTP handlers, settings, themes, rendering (`render.go`), web assets in `web/`
   - `internal/store/` — SQLite store, migrations, campaign records
   - `scripts/build-dev.sh` — the only supported way to produce `bin/Release/reelanvil`

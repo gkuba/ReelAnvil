@@ -75,6 +75,8 @@ footer{color:var(--muted);font-size:12px;margin:32px 0 10px}
 .stats .metric-card:nth-child(3) .metric{color:var(--tertiary)}
 .note{padding:12px 15px;border:1px solid var(--line);background:var(--note-bg);border-radius:10px;color:var(--note-text);margin:12px 0}
 .note.success{color:var(--success)}
+.restart-note{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.restart-note form{margin:0}
 .note.error{border-color:#ba6b82;color:#ffd4dc;background:#40232d}
 .badge{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px 8px;color:var(--muted);font-size:11px;white-space:nowrap}
 .badge.status{color:var(--secondary)}

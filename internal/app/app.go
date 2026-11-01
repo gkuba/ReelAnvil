@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -26,15 +27,22 @@ import (
 //	-ldflags "-X github.com/gkuba/ReelAnvil/internal/app.Version=..."
 var Version = "0.9.2-dev"
 
-const DefaultAddr = "127.0.0.1:8080"
+// DefaultAddr listens on every interface so the instance is reachable on the
+// LAN. It has no authentication: trusted networks only.
+const DefaultAddr = "0.0.0.0:8080"
 
 // Options configure the web server.
 type Options struct {
 	// DataDir holds settings/, data/ and logs/. Relative paths are resolved
 	// against the current working directory.
 	DataDir string
-	// Addr is the loopback host:port to listen on.
+	// Addr overrides the saved listen address (Settings > General) for this
+	// run when not empty.
 	Addr string
+	// AllowedHosts overrides the saved extra host names when not nil. IP
+	// addresses and this machine's host name are always accepted on a
+	// non-loopback address.
+	AllowedHosts []string
 }
 
 type Settings struct {
@@ -45,6 +53,9 @@ type Settings struct {
 	// ThemeIcons is retained only to preserve older per-theme preferences when
 	// upgrading. Build 0.9.1 uses IconVariant as the global icon choice.
 	ThemeIcons map[string]string `json:"theme_icons"`
+	// ListenAddress and AllowedHosts take effect on the next start or restart.
+	ListenAddress string   `json:"listen_address"`
+	AllowedHosts  []string `json:"allowed_hosts,omitempty"`
 }
 type Server struct {
 	mu         sync.Mutex
@@ -57,13 +68,20 @@ type Server struct {
 	themes     map[string]Theme
 	themeError string
 	store      *store.Store
+	hosts      hostPolicy
+	// runHosts are the allowed host names in use; the override flags mark
+	// values that came from --addr / --allowed-hosts or the environment.
+	runHosts                    []string
+	addrOverride, hostsOverride bool
+	restart                     chan struct{}
+	restartOnce                 sync.Once
 }
 
 const settingsVersion = 3
 const configPath = "settings/config.json"
 
 func defaults() Settings {
-	return Settings{Version: settingsVersion, InstanceName: "ReelAnvil", Theme: defaultTheme, IconVariant: defaultIcon}
+	return Settings{Version: settingsVersion, InstanceName: "ReelAnvil", Theme: defaultTheme, IconVariant: defaultIcon, ListenAddress: DefaultAddr}
 }
 
 // file returns name inside the server's data directory.
@@ -106,6 +124,14 @@ func load(path string) (Settings, error) {
 			c.IconVariant = defaultIcon
 		}
 	}
+	if c.ListenAddress == "" {
+		c.ListenAddress = DefaultAddr
+	} else if err := validListenAddress(c.ListenAddress); err != nil {
+		return c, fmt.Errorf("invalid listen_address %q: %w", c.ListenAddress, err)
+	}
+	if c.AllowedHosts, err = parseAllowedHosts(strings.Join(c.AllowedHosts, ",")); err != nil {
+		return c, fmt.Errorf("invalid allowed_hosts: %w", err)
+	}
 	c.Version = settingsVersion
 	// Theme selection is validated after custom themes load in Serve.
 	return c, nil
@@ -120,22 +146,67 @@ func save(path string, c Settings) error {
 func validInstanceName(name string) bool {
 	return name != "" && utf8.RuneCountInString(name) <= 64 && !strings.ContainsAny(name, "\r\n\x00")
 }
-func loopbackAddress(address string) error {
+
+// exposedAddress reports whether address listens beyond loopback: on all
+// interfaces (0.0.0.0, [::] or an empty host) or on a network address.
+func exposedAddress(address string) (bool, error) {
 	addr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
-		return fmt.Errorf("invalid listen address: %w", err)
+		return false, fmt.Errorf("invalid listen address: %w", err)
 	}
-	if addr.IP == nil || !addr.IP.IsLoopback() {
-		return errors.New("unauthenticated development server may only listen on a loopback address")
-	}
-	return nil
+	return addr.IP == nil || !addr.IP.IsLoopback(), nil
 }
+
+// hostPolicy decides which Host headers are served. The zero value accepts
+// only localhost and loopback IPs. An exposed server also accepts IP literals
+// and the listed names; other names are still rejected, which keeps the
+// DNS-rebinding defense (a rebinding page always uses the attacker's name).
+type hostPolicy struct {
+	exposed bool
+	names   map[string]bool
+}
+
+func newHostPolicy(exposed bool, names []string) hostPolicy {
+	p := hostPolicy{exposed: exposed, names: map[string]bool{}}
+	if !exposed {
+		return p
+	}
+	if h, err := os.Hostname(); err == nil && h != "" {
+		h = normalizeHost(h)
+		p.names[h] = true
+		if !strings.Contains(h, ".") {
+			p.names[h+".local"] = true
+		}
+	}
+	for _, n := range names {
+		if n = normalizeHost(n); n != "" {
+			p.names[n] = true
+		}
+	}
+	return p
+}
+
+func normalizeHost(host string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+}
+
+func (p hostPolicy) allows(host string) bool {
+	host = normalizeHost(host)
+	ip := net.ParseIP(host)
+	if host == "localhost" || (ip != nil && ip.IsLoopback()) {
+		return true
+	}
+	return p.exposed && (ip != nil || p.names[host])
+}
+
+// exposedWarning is printed and logged whenever the server listens beyond loopback.
+const exposedWarning = "WARNING: listening beyond loopback with no authentication. Anyone who can reach this port can use and change this instance. Use it only on a trusted local network; never expose it to the internet."
 
 // contentSecurityPolicy allows only same-origin scripts, styles and images.
 // Pages must not use inline <script>, <style> or style="" attributes.
 const contentSecurityPolicy = "default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 
-func localRequest(next http.Handler) http.Handler {
+func localRequest(next http.Handler, hosts hostPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
@@ -145,9 +216,8 @@ func localRequest(next http.Handler) http.Handler {
 		if err != nil {
 			host = strings.Trim(r.Host, "[]")
 		}
-		ip := net.ParseIP(host)
-		if !strings.EqualFold(host, "localhost") && (ip == nil || !ip.IsLoopback()) {
-			http.Error(w, "local requests only", http.StatusMisdirectedRequest)
+		if !hosts.allows(host) {
+			http.Error(w, "host not allowed", http.StatusMisdirectedRequest)
 			return
 		}
 		if r.Method == http.MethodPost {
@@ -191,10 +261,6 @@ func Doctor(opts Options) error {
 	if err != nil {
 		return err
 	}
-	addr := opts.Addr
-	if addr == "" {
-		addr = DefaultAddr
-	}
 	line := func(label, value string) { fmt.Printf("%-17s %s\n", label+":", value) }
 	fmt.Println("ReelAnvil local diagnostics")
 	line("Version", Version)
@@ -213,18 +279,35 @@ func Doctor(opts Options) error {
 	check("Themes", themePath)
 	check("Database", "data/reelanvil.db")
 	check("Log", "logs/reelanvil.log")
-	if _, err := load(filepath.Join(dataDir, configPath)); err != nil {
+	cfg, err := load(filepath.Join(dataDir, configPath))
+	if err != nil {
 		line("Settings check", "invalid: "+err.Error())
+		cfg = defaults()
 	} else {
 		line("Settings check", "ok")
+	}
+	addr, hosts := cfg.ListenAddress, cfg.AllowedHosts
+	if opts.Addr != "" {
+		addr = opts.Addr
+	}
+	if opts.AllowedHosts != nil {
+		hosts = opts.AllowedHosts
 	}
 	if _, err := parseThemeFile(filepath.Join(dataDir, themePath)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		line("Themes check", "invalid: "+err.Error())
 	} else {
 		line("Themes check", "ok")
 	}
-	if err := loopbackAddress(addr); err != nil {
+	if exposed, err := exposedAddress(addr); err != nil {
 		line("Listen address", addr+" - "+err.Error())
+	} else if exposed {
+		line("Listen address", addr+" (network: no authentication, trusted LAN only)")
+		names := make([]string, 0)
+		for n := range newHostPolicy(true, hosts).names {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		line("Allowed hosts", "IP addresses, localhost, "+strings.Join(names, ", "))
 	} else {
 		line("Listen address", addr+" (loopback)")
 	}
@@ -245,6 +328,8 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/assets/themes.css", s.themesStylesheet)
 	mux.HandleFunc("/favicon.ico", s.favicon)
 	mux.HandleFunc("/settings", s.settings)
+	mux.HandleFunc("/settings/network", s.saveNetwork)
+	mux.HandleFunc("/system/restart", s.restartHandler)
 	mux.HandleFunc("/themes/refresh", s.refreshThemes)
 	mux.HandleFunc("/themes/duplicate", s.duplicateTheme)
 	mux.HandleFunc("/themes/save", s.saveTheme)
@@ -256,17 +341,37 @@ func (s *Server) handler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
-	return localRequest(mux)
+	return localRequest(mux, s.hosts)
+}
+
+// displayAddr turns a wildcard listener such as 0.0.0.0:8080 into a URL host a
+// browser on this machine can open.
+func displayAddr(a net.Addr) string {
+	tcp, ok := a.(*net.TCPAddr)
+	if !ok || !tcp.IP.IsUnspecified() {
+		return a.String()
+	}
+	host := "localhost"
+	if h, err := os.Hostname(); err == nil && h != "" {
+		host = h
+	}
+	return net.JoinHostPort(host, fmt.Sprint(tcp.Port))
 }
 
 func Serve(opts Options) error {
-	addr := opts.Addr
-	if addr == "" {
-		addr = DefaultAddr
+	// Validate command-line values before touching any files.
+	addr, addrOverride := opts.Addr, opts.Addr != ""
+	if addrOverride {
+		if _, err := exposedAddress(addr); err != nil {
+			return err
+		}
 	}
-	// Refuse a non-loopback address before touching any files.
-	if err := loopbackAddress(addr); err != nil {
-		return err
+	hosts, hostsOverride := opts.AllowedHosts, opts.AllowedHosts != nil
+	if hostsOverride {
+		var err error
+		if hosts, err = parseAllowedHosts(strings.Join(hosts, ",")); err != nil {
+			return fmt.Errorf("--allowed-hosts: %w", err)
+		}
 	}
 	dataDir, err := filepath.Abs(opts.DataDir)
 	if err != nil {
@@ -300,7 +405,18 @@ func Serve(opts Options) error {
 	if err = save(cfgPath, cfg); err != nil {
 		return err
 	}
-	s := &Server{cfg: cfg, cfgPath: cfgPath, dataDir: dataDir, addr: addr, started: time.Now(), log: logger, themes: map[string]Theme{}, store: db}
+	if !addrOverride {
+		addr = cfg.ListenAddress
+	}
+	if !hostsOverride {
+		hosts = cfg.AllowedHosts
+	}
+	exposed, err := exposedAddress(addr)
+	if err != nil {
+		return err
+	}
+	s := &Server{cfg: cfg, cfgPath: cfgPath, dataDir: dataDir, addr: addr, started: time.Now(), log: logger, themes: map[string]Theme{}, store: db,
+		hosts: newHostPolicy(exposed, hosts), runHosts: hosts, addrOverride: addrOverride, hostsOverride: hostsOverride, restart: make(chan struct{})}
 	s.reloadThemes()
 	if !validTheme(s.cfg.Theme) && s.themes[s.cfg.Theme].ID == "" {
 		s.cfg.Theme = defaultTheme
@@ -312,20 +428,38 @@ func Serve(opts Options) error {
 	defer listener.Close()
 	server := &http.Server{Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	s.log.Printf("server %s listening on %s, data directory %s", Version, addr, dataDir)
-	fmt.Printf("ReelAnvil %s: http://%s\nData directory: %s\n", Version, addr, dataDir)
+	if exposed {
+		s.log.Print(exposedWarning)
+		fmt.Fprintln(os.Stderr, exposedWarning)
+	}
+	fmt.Printf("ReelAnvil %s: http://%s\nData directory: %s\n", Version, displayAddr(listener.Addr()), dataDir)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	shutdownDone := make(chan struct{})
 	go func() {
-		<-ctx.Done()
+		defer close(shutdownDone)
+		select {
+		case <-ctx.Done():
+		case <-s.restart:
+		}
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		server.Shutdown(shutdown)
 	}()
 	err = server.Serve(listener)
-	if errors.Is(err, http.ErrServerClosed) {
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	// Let in-flight requests (such as the restart page) finish before the
+	// deferred database and log closes run.
+	<-shutdownDone
+	select {
+	case <-s.restart:
+		s.log.Print("restarting")
+		return ErrRestart
+	default:
 		return nil
 	}
-	return err
 }
 func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {

@@ -1,0 +1,8 @@
+{{define "head"}}<meta http-equiv="refresh" content="3;url={{.RedirectURL}}">{{end}}
+{{define "content"}}
+<h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg> Restarting ReelAnvil</h1>
+<div class="card">
+<p role="status">ReelAnvil is restarting. This page opens <a href="{{.RedirectURL}}">{{.RedirectURL}}</a> in a few seconds.</p>
+<p class="muted">If it doesn't load, wait a moment and follow the link. If the address changed and nothing answers, check the bind address and port, or start ReelAnvil with <code>--addr</code>.</p>
+</div>
+{{end}}

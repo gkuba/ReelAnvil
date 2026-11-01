@@ -7,11 +7,11 @@
 
 ## What exists today
 
-- Go web server (`reelanvil serve`) bound to loopback only, with Host checks, same-origin POST checks, a 1 MiB body cap, timeouts, and a CSP without `unsafe-inline`. No authentication.
+- Go web server (`reelanvil serve`), listening on `0.0.0.0:8080` by default for trusted LANs; bind address, port and allowed host names are editable in Settings → General → Network, applied with a Restart ReelAnvil button, with Host checks, same-origin POST checks, a 1 MiB body cap, timeouts, and a CSP without `unsafe-inline`. No authentication.
 - Embedded web UI: one shared layout and sidebar (expanded or compact rail with flyouts), responsive down to phone width.
 - Settings: instance name; five built-in themes (Aurora, Dracula, Tomorrow Night, Nocturne, Foundry); custom themes stored in `settings/themes.json` with a last-known-good backup; a global application icon.
 - SQLite (schema v3): manual campaign records with HTTPS-only links, local tracking status and notes, filters and sorting, and an Overview summary. Campaign discovery is deliberately disabled.
-- CLI: `serve`, `doctor`, `version`; `--data-dir` and `--addr` flags.
+- CLI: `serve`, `doctor`, `version`; `--data-dir`, `--addr` and `--allowed-hosts` flags (per-run overrides of the saved network settings).
 - Tests cover security guards, migrations, settings and theme recovery, campaign validation, rendering and CSP compliance. CI runs on GitHub Actions.
 
 ## Placeholders (UI only, no function)
@@ -26,7 +26,7 @@ Jobs, Media Library, Review, Services, Connectors and the Paths & Storage fields
 
 ## Open items and release gates
 
-- **Authentication and session-bound CSRF** must exist before any non-loopback deployment. Remote deployment is not authorized.
+- **Authentication and session-bound CSRF** must exist before any deployment beyond a trusted LAN. Internet exposure is not authorized.
 - Theme recovery failure-injection checks remain open: [`PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`](PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md).
 - License copyright holder, third-party notice audit, trademark check, pinned image digests and release-packaging tests are pending.
 - No penetration test yet. Secret scanning is not yet wired into CI.

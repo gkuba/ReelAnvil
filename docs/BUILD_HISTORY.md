@@ -2,6 +2,12 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-10-31 — Build 0.9.2: LAN listening and network settings (uncommitted)
+
+- **Changes:** listen address and allowed host names became saved settings (default `0.0.0.0:8080`) with a Network card on Settings → General; `POST /system/restart` checks the new address can be bound, renders a reconnect page, shuts down gracefully and re-executes the binary; a pending-restart banner on every page; Host policy accepts IP literals, the machine's name and listed names only when not on loopback; `--addr` / `--allowed-hosts` override per run; README not-for-internet disclaimer.
+- **Verified:** `gofmt`, `go vet`, `go test -race` and `scripts/build-dev.sh` pass. On a scratch copy: saving port 18090 showed the banner, Restart reconnected the browser to `:18090`, and restarting back to `:18089` worked; restart page and Settings at 375px with no horizontal scroll; LAN-IP, hostname and foreign-Host requests returned 200/200/421 on a `0.0.0.0` scratch run.
+- **Not verified:** a restart under systemd on the Debian host; access from a second machine on the LAN; govulncheck/staticcheck (CI).
+
 ## 2026-10-29 — Build 0.9.2: web UI restructure and fixes
 
 - **Changes:** moved the inline HTML/CSS/JS out of Go strings into embedded `internal/app/web/` files with one layout; built-in palettes became Go data served as `/assets/themes.css`; CSP tightened to `script-src 'self'; style-src 'self'`; one-time cookie messages replaced `?message=` / `?error=`; SQLite schema v3 (date-only deadlines, platform/status validation in Go, ordered migrations); `--data-dir` / `--addr` flags, `version`, a fuller `doctor`, build version stamping; GitHub Actions CI; agent docs rewritten for the Claude Code workflow.

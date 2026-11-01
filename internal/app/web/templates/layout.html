@@ -8,11 +8,13 @@
 <link rel="stylesheet" href="/assets/themes.css">
 <link rel="stylesheet" href="/assets/app.css?v={{.Version}}">
 <script src="/assets/app.js?v={{.Version}}" defer></script>
+{{block "head" .}}{{end}}
 </head>
 <body class="{{.BodyTheme}}">
 <div class="shell">
 {{template "sidebar" .}}
 <main>
+{{if .RestartPending}}<div class="note restart-note" role="status"><span>Network settings changed. Restart ReelAnvil to apply them.</span><form method="post" action="/system/restart"><button type="submit" class="small">Restart ReelAnvil</button></form></div>{{end}}
 {{template "content" .}}
 </main>
 </div>

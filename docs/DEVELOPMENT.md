@@ -26,13 +26,16 @@ cd bin/Release
 Open <http://127.0.0.1:8080>; stop with **Ctrl+C**. Other options:
 
 ```sh
-./reelanvil serve --addr 127.0.0.1:18080        # or REELANVIL_ADDR=...
+./reelanvil serve --addr 127.0.0.1:18080        # this run only, or REELANVIL_ADDR=...
+./reelanvil serve --allowed-hosts reelanvil.lan # this run only, or REELANVIL_ALLOWED_HOSTS=...
 ./reelanvil serve --data-dir /path/to/test-data  # or REELANVIL_DATA_DIR=...
 ./reelanvil doctor                               # read-only checks of the data directory
 ./reelanvil version
 ```
 
-The server refuses any non-loopback address. It has no authentication; don't expose it through a LAN, reverse proxy or tunnel.
+The listen address and extra host names are saved settings (`listen_address`, `allowed_hosts` in `settings/config.json`), edited under Settings → General → Network. The default is `0.0.0.0:8080`. Saved changes apply after **Restart ReelAnvil** (on that card, or the banner shown on every page while a change is pending): the server checks the new address can be bound, shows a page that reconnects to the new address, shuts down gracefully and re-executes its binary with the same arguments. `--addr` / `--allowed-hosts` (or their environment variables) override the saved values for that run, which is how scratch copies stay on `127.0.0.1:18089`.
+
+Any non-loopback address prints a warning at startup, because there is no authentication yet. On a non-loopback server the Host check accepts IP addresses, `localhost`, this machine's host name (plus `<name>.local`), and the allowed host names; other host names get `421`, which keeps the DNS-rebinding defense. Same-origin POST checks still apply. Trusted LAN only: never expose it to the internet. `reelanvil doctor` shows which hosts are accepted.
 
 ## Data directory
 

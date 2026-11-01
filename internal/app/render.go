@@ -22,7 +22,7 @@ var webAssets embed.FS
 
 // pages maps a page name to its template set: the shared layout and sidebar
 // plus web/templates/<name>.html, which defines "content".
-var pages = parsePages("overview", "campaigns", "general", "themes", "connectors", "storage", "diagnostics", "placeholder")
+var pages = parsePages("overview", "campaigns", "general", "themes", "connectors", "storage", "diagnostics", "placeholder", "restart")
 
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
@@ -51,16 +51,19 @@ type pageBase struct {
 	Title, Section, BodyTheme, IconURL string
 	Version, DataDir, Address          string
 	Flash                              *flash
+	RestartPending                     bool
 }
 
 func (s *Server) base(w http.ResponseWriter, r *http.Request, title, section string) pageBase {
 	s.mu.Lock()
 	cfg := s.cfg
+	pending := s.restartPending()
 	s.mu.Unlock()
 	return pageBase{
 		Title: title, Section: section, BodyTheme: bodyTheme(cfg.Theme),
 		IconURL: iconURL(selectedIcon(cfg), 64), Version: Version,
 		DataDir: s.dataDir, Address: s.addr, Flash: takeFlash(w, r),
+		RestartPending: pending,
 	}
 }
 
@@ -154,6 +157,7 @@ type settingsPageData struct {
 	EditColors  []ColorField
 	ThemeError  string
 	IconOptions []IconOption
+	Network     networkView
 }
 
 func (s *Server) page(w http.ResponseWriter, r *http.Request) {
@@ -187,6 +191,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	}
 	data.EditTheme = s.themes[data.EditID]
 	data.IconOptions = iconOptions(selectedIcon(s.cfg))
+	data.Network = s.network()
 	s.mu.Unlock()
 	data.EditColors = colorFields(data.EditTheme)
 	data.Uptime = time.Since(s.started).Truncate(time.Second).String()

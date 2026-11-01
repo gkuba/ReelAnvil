@@ -20,7 +20,7 @@ import (
 
 func TestSettingsRoundTrip(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	original := Settings{Version: 3, InstanceName: "Test", Theme: "aurora", IconVariant: "molten-orange", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "molten-orange", "custom": "amethyst"}}
+	original := Settings{Version: 3, InstanceName: "Test", Theme: "aurora", IconVariant: "molten-orange", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "molten-orange", "custom": "amethyst"}, ListenAddress: "192.0.2.10:9000", AllowedHosts: []string{"reelanvil.lan"}}
 	if err := save(p, original); err != nil {
 		t.Fatal(err)
 	}
@@ -261,22 +261,50 @@ func TestCampaignPostRejectsCrossOriginAndMethods(t *testing.T) {
 	}
 }
 
-func TestLoopbackAddressRequired(t *testing.T) {
-	for _, address := range []string{"127.0.0.1:8080", "[::1]:8080", "localhost:8080"} {
-		if err := loopbackAddress(address); err != nil {
-			t.Errorf("loopback address %q rejected: %v", address, err)
+func TestExposedAddress(t *testing.T) {
+	for address, want := range map[string]bool{
+		"127.0.0.1:8080": false, "[::1]:8080": false, "localhost:8080": false,
+		"0.0.0.0:8080": true, ":8080": true, "[::]:8080": true, "192.0.2.1:8080": true,
+	} {
+		got, err := exposedAddress(address)
+		if err != nil || got != want {
+			t.Errorf("exposedAddress(%q) = %v, %v; want %v", address, got, err, want)
 		}
 	}
-	for _, address := range []string{"0.0.0.0:8080", ":8080", "192.0.2.1:8080"} {
-		if err := loopbackAddress(address); err == nil {
-			t.Errorf("non-loopback address %q accepted", address)
+	if _, err := exposedAddress("not-an-address"); err == nil {
+		t.Error("invalid address accepted")
+	}
+}
+
+func TestHostPolicy(t *testing.T) {
+	loopback := hostPolicy{}
+	lan := newHostPolicy(true, []string{"ReelAnvil.lan."})
+	hostname, _ := os.Hostname()
+	for _, tc := range []struct {
+		host          string
+		loopback, lan bool
+	}{
+		{"localhost", true, true},
+		{"127.0.0.1", true, true},
+		{"::1", true, true},
+		{"192.168.1.20", false, true},
+		{"fe80::1", false, true},
+		{"reelanvil.lan", false, true},
+		{strings.ToUpper(hostname), false, hostname != ""},
+		{"attacker.example", false, false},
+	} {
+		if got := loopback.allows(tc.host); got != tc.loopback {
+			t.Errorf("loopback policy allows(%q) = %v", tc.host, got)
+		}
+		if got := lan.allows(tc.host); got != tc.lan {
+			t.Errorf("LAN policy allows(%q) = %v", tc.host, got)
 		}
 	}
 }
 
 func TestLocalRequestRejectsForeignHostAndOrigin(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	handler := localRequest(next)
+	handler := localRequest(next, hostPolicy{})
 	for _, tc := range []struct {
 		name, host, origin string
 		method             string
@@ -286,6 +314,7 @@ func TestLocalRequestRejectsForeignHostAndOrigin(t *testing.T) {
 		{"foreign-origin post", "127.0.0.1:8080", "http://attacker.example", http.MethodPost, http.StatusForbidden},
 		{"foreign host", "attacker.example", "", http.MethodGet, http.StatusMisdirectedRequest},
 		{"originless local post", "localhost:8080", "", http.MethodPost, http.StatusNoContent},
+		{"LAN host on loopback server", "192.168.1.20:8080", "", http.MethodGet, http.StatusMisdirectedRequest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := httptest.NewRequest(tc.method, "http://"+tc.host+"/", nil)
@@ -374,6 +403,28 @@ func TestEndingSoonUsesCalendarDatesAndKnownDeadlinesOnly(t *testing.T) {
 	}
 }
 
+func TestLocalRequestOnLAN(t *testing.T) {
+	handler := localRequest(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }), newHostPolicy(true, nil))
+	for _, tc := range []struct {
+		name, origin string
+		want         int
+	}{
+		{"same-origin LAN post", "http://192.168.1.20:8080", http.StatusNoContent},
+		{"foreign-origin LAN post", "http://192.168.1.99:8080", http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodPost, "http://192.168.1.20:8080/", nil)
+			r.Host = "192.168.1.20:8080"
+			r.Header.Set("Origin", tc.origin)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, r)
+			if w.Code != tc.want {
+				t.Fatalf("status = %d, want %d", w.Code, tc.want)
+			}
+		})
+	}
+}
+
 func TestLocalRequestCapsPostBody(t *testing.T) {
 	handler := localRequest(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := io.ReadAll(r.Body)
@@ -382,7 +433,7 @@ func TestLocalRequestCapsPostBody(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}))
+	}), hostPolicy{})
 	r := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8080/", strings.NewReader(strings.Repeat("x", (1<<20)+1)))
 	r.Host = "127.0.0.1:8080"
 	w := httptest.NewRecorder()
@@ -482,7 +533,7 @@ func securityTestServer(t *testing.T) *Server {
 		}
 	})
 	return &Server{
-		cfg: defaults(), cfgPath: cfgPath, started: time.Now(), log: log.New(io.Discard, "", 0), themes: themes,
+		cfg: defaults(), cfgPath: cfgPath, addr: DefaultAddr, started: time.Now(), log: log.New(io.Discard, "", 0), themes: themes,
 		store: db,
 	}
 }
