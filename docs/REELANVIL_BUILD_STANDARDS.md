@@ -366,7 +366,7 @@ Persist job state in SQLite and define explicit allowed transitions. Job cancell
 ### 8.2 Transcription
 
 - Preferred initial candidate: maintained **LinuxServer.io faster-whisper** container with Wyoming protocol; Go requires a Wyoming adapter/client.
-- Benchmark accuracy, word timestamps, model availability, CPU speed, memory, and API behavior on the Debian SER6 before declaring production-ready.
+- Benchmark accuracy, word timestamps, model availability, CPU speed, memory, and API behavior on the Debian 13 reference host (Ryzen 7 7735HS, 8C/16T, 32 GB RAM, Radeon 680M iGPU) before declaring production-ready.
 - Transcripts are durable artifacts with language, timing, model, and provenance metadata.
 
 ### 8.3 Media worker
@@ -429,7 +429,7 @@ Persist job state in SQLite and define explicit allowed transitions. Job cancell
 4. Worker transport/authentication details, Docker Engine permission isolation, and whether a restricted Docker proxy/rootless engine can be used.
 5. Exact quota enforcement method, filesystem edge cases, accounting for hardlinks and shared mounts, per-folder limits vs grouped pools, and default limits.
 6. Exact frontend component system, design tokens, layout/navigation details, accessibility testing.
-7. Which faster-whisper model and Ollama models meet CPU-only quality/performance targets on SER6.
+7. Which faster-whisper model and Ollama models meet CPU-only quality/performance targets on the Debian 13 reference host.
 8. Detailed campaign eligibility, social platform submission rules, source licensing, and payout tracking integrations.
 9. When Windows/macOS experimental builds become available; no commitment to support yet.
 
