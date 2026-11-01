@@ -2,7 +2,7 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
-## 2026-10-31 — Build 0.9.2: LAN listening and network settings (uncommitted)
+## 2026-10-31 — Build 0.9.2: LAN listening and network settings (`1ef80fd`, pushed to `dev`)
 
 - **Changes:** listen address and allowed host names became saved settings (default `0.0.0.0:8080`) with a Network card on Settings → General; `POST /system/restart` checks the new address can be bound, renders a reconnect page, shuts down gracefully and re-executes the binary; a pending-restart banner on every page; Host policy accepts IP literals, the machine's name and listed names only when not on loopback; `--addr` / `--allowed-hosts` override per run; README not-for-internet disclaimer.
 - **Verified:** `gofmt`, `go vet`, `go test -race` and `scripts/build-dev.sh` pass. On a scratch copy: saving port 18090 showed the banner, Restart reconnected the browser to `:18090`, and restarting back to `:18089` worked; restart page and Settings at 375px with no horizontal scroll; LAN-IP, hostname and foreign-Host requests returned 200/200/421 on a `0.0.0.0` scratch run.
