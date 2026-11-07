@@ -2,8 +2,8 @@ package app
 
 // The Services page and the Transcription page's live model list. Checks run
 // with short timeouts, in parallel, so the page stays quick when something is
-// down. The web server has no container access, so the container engines are
-// reported as "checked by reelanvil doctor" rather than probed here.
+// down. The web server has no container access, so a container media engine
+// gets no card here; reelanvil doctor checks it.
 
 import (
 	"fmt"
@@ -18,7 +18,6 @@ import (
 const (
 	repairCommand  = "sudo reelanvil doctor --repair"
 	upgradeCommand = "sudo reelanvil upgrade"
-	doctorCommand  = "sudo reelanvil doctor"
 )
 
 type fact struct{ Label, Value string }
@@ -95,7 +94,9 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request, sec pageSp
 	}}, nil)
 	add(ollamaCard(cfg, oll))
 	add(whisperCard(cfg, whs))
-	add(mediaCard(cfg))
+	if cfg.MediaEngine == EngineHost {
+		add(mediaCard(cfg))
+	}
 	add(storageCard(root, stor))
 
 	data.Ready = len(data.Actions) == 0
@@ -165,11 +166,6 @@ func whisperCard(cfg Settings, st whisperStatus) (serviceCard, []actionItem) {
 
 func mediaCard(cfg Settings) (serviceCard, []actionItem) {
 	c := serviceCard{Name: "Media engine", Facts: []fact{{"Engine", cfg.MediaEngine}}}
-	if cfg.MediaEngine != EngineHost {
-		c.Status, c.Level = "Not checked here", "off"
-		c.Facts = append(c.Facts, fact{"Container engine", "the worker owns the containers, so " + doctorCommand + " checks " + cfg.MediaEngine + " and the media container"})
-		return c, nil
-	}
 	var missing []string
 	for _, t := range []struct{ name, path string }{{"FFmpeg", cfg.FFmpegPath}, {"yt-dlp", cfg.YtDlpPath}} {
 		if found, err := exec.LookPath(t.path); err != nil {

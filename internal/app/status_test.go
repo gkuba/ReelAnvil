@@ -59,9 +59,9 @@ func TestServicesPageReady(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Ready. Every check that runs from the web app passed.", "status-ok",
-		"<h2>Web app</h2>", "<h2>Ollama</h2>", "<h2>Whisper</h2>", "<h2>Media engine</h2>", "<h2>Storage</h2>",
+		"<h2>Web app</h2>", "<h2>Ollama</h2>", "<h2>Whisper</h2>", "<h2>Storage</h2>",
 		Version, "Uptime", "Installed models", "qwen2.5:3b, llama3.2:3b", "Models reported", "tiny-int8, base",
-		"Not checked here", "sudo reelanvil doctor", "Check again", `href="/services"`, "tiny-int8, en",
+		"Check again", `href="/services"`, "tiny-int8, en",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("services page lacks %q", want)
@@ -69,6 +69,10 @@ func TestServicesPageReady(t *testing.T) {
 	}
 	if strings.Contains(body, "Needs action") || strings.Contains(body, "status-warn") {
 		t.Error("ready page shows a problem")
+	}
+	// A container engine can't be checked from the web app, so it gets no card.
+	if strings.Contains(body, "<h2>Media engine</h2>") {
+		t.Error("services page shows a media engine card for a container engine")
 	}
 	if strings.Contains(body, "ETA") {
 		t.Error("services page mentions an ETA")
@@ -161,12 +165,6 @@ func TestServicesMediaCardHostProgramsAreLocatedNotRun(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "was-run")); err == nil {
 		t.Error("a program was run")
-	}
-	for _, engine := range []string{EnginePodman, EngineDocker} {
-		card, actions := mediaCard(Settings{MediaEngine: engine})
-		if card.Status != "Not checked here" || card.Level != "off" || len(actions) != 0 || !strings.Contains(card.Facts[1].Value, "sudo reelanvil doctor") {
-			t.Errorf("%s: %+v %+v", engine, card, actions)
-		}
 	}
 }
 

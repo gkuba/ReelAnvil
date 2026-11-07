@@ -8,7 +8,7 @@
 <p class="service-status {{if .Ready}}status-ok{{else}}status-warn{{end}}">{{.Summary}}</p>
 {{if .Actions}}<ul class="actions-list">
 {{range .Actions}}<li>{{.Text}}{{if .Command}} Run <code>{{.Command}}</code>.{{end}}{{if .Link}} <a class="link" href="{{.Link}}">{{.LinkLabel}}</a>{{end}}</li>
-{{end}}</ul>{{else}}<p>The container engine and media container are checked by <code>sudo reelanvil doctor</code>, which the web app cannot run.</p>{{end}}
+{{end}}</ul>{{end}}
 <div class="actions"><a class="btn secondary" href="/services">Check again</a><span class="muted">Last checked {{.Checked}}</span></div>
 </div>
 <div class="stats">
