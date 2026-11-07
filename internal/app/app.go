@@ -487,9 +487,11 @@ func Serve(opts Options) error {
 	if cfg.MediaRoot == "" {
 		// No saved media root: use <data-dir>/media and make sure it is ready.
 		root := effectiveMediaRoot(cfg, dataDir)
-		if err := os.MkdirAll(root, folderMode); err == nil {
+		err := os.MkdirAll(root, folderMode)
+		if err == nil {
 			_, err = ensureMediaFolders(root)
-		} else {
+		}
+		if err != nil {
 			s.log.Printf("media root %s: %v", root, err)
 		}
 	}

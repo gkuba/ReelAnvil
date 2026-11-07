@@ -2,6 +2,12 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-11-06 — Build 0.9.2: staticcheck findings fixed (not committed)
+
+- **Changes:** CI's staticcheck step has failed since `64f802b`. Removed the unused `Server.mediaRoot`; the `..` media-root error no longer ends in punctuation (ST1005); a failure to create the default media folders at startup is now logged instead of dropped (SA4006).
+- **Verified:** `gofmt -l .` empty, `go vet ./...`, `go test -race ./...`, `go mod verify`, `scripts/build-dev.sh` pass.
+- **Not verified:** staticcheck itself (not installed locally); CI.
+
 ## 2026-11-06 — Build 0.9.2: clips run until the speaker finishes (not committed)
 
 - **Changes:** transcript lines are cut at pauses, not sentences, so a clip could stop mid-sentence (job 2's 6:05–6:55 clip ended on "…awestruck at what…"). After the length fit, `finishSentence` moves the end forward to the first line ending in `.`, `!` or `?` (a trailing ellipsis doesn't count), past the job maximum up to `FinishCapS` (120 s) or the job maximum if larger; it never moves the end back. The hunter prompt says to end only when the speakers have finished the answer or exchange; the reviewer rejects clips that stop before the speaker is done. The job maximum stays a target, not a hard stop (maintainer: YouTube allows more than 90 s, most clips under 2 min).

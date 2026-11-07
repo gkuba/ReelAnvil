@@ -79,7 +79,7 @@ func normalizeMediaRoot(v string) (string, error) {
 	}
 	for _, el := range strings.Split(v, "/") {
 		if el == ".." {
-			return "", errors.New("media root must not contain ..")
+			return "", errors.New("media root must not contain a .. part")
 		}
 	}
 	c := filepath.Clean(v)
@@ -119,12 +119,6 @@ func effectiveMediaRoot(c Settings, dataDir string) string {
 		return c.MediaRoot
 	}
 	return filepath.Join(dataDir, "media")
-}
-
-func (s *Server) mediaRoot() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return effectiveMediaRoot(s.cfg, s.dataDir)
 }
 
 // folderPath is the path of one logical area under root.
