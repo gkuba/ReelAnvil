@@ -2,6 +2,12 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-11-06 — Build 0.9.2: Services hides the container media engine (`3161fb4`, pushed to `dev`)
+
+- **Changes:** the Services page shows the Media engine card only when the engine is host programs; for Podman or Docker the web app can't check the container, so there is no card (`reelanvil doctor` checks it).
+- **Verified:** `gofmt -l .` empty, `go vet ./...`, `go test -race ./...`, `scripts/build-dev.sh` pass; a test asserts no Media engine card for container engines. On the Debian 13 host after `upgrade`: `/services` shows Web app, Ollama, Whisper and Storage, status Ready.
+- **Not verified:** the maintainer's visual review.
+
 ## 2026-11-06 — Build 0.9.2: working Settings and Services pages (`64f802b`, pushed to `dev`)
 
 - **Changes:** settings version 5 (`media_root`, `storage_limit_gb`, `hunter_model`, `reviewer_model`, `whisper_model`, `whisper_language`; version 4 files migrate by filling defaults, future versions are still refused). Paths & Storage (save, Check with write test, `Statfs` free space, bounded walk for used space, over-limit warning; saving creates missing `incoming/ temp/ completed/ failed/ archive/` at 0750 only when the root exists; arrival folder name is one constant). AI: installed-model selects for the two roles, background `/api/pull` stream owned by the server (one at a time, stoppable, cancelled on shutdown, 5-minute stall limit, bytes summed from Ollama's per-layer numbers), `/api/generate` model test (60 s, write deadline extended for that request). Transcription: model and language fields with the service's reported models. Connectors: honest static page. Services: five status cards checked in parallel with 3 s limits, summary with commands. Installer: `compose.yaml` is now `compose.yaml.tmpl` rendered from `config.json` (validated Whisper values and media root), `install`/`upgrade` create the media folders, `doctor` checks the media root (exists, writable by `reelanvil` via `runuser ... test -w`) and notes a compose file that no longer matches the settings.
