@@ -15,10 +15,13 @@ const usage = `usage: reelanvil <command> [flags]
 
 Commands:
   serve     run the local web interface
-  doctor    print local diagnostics without changing files
+  doctor    print diagnostics; with --repair [--clean] fix a system install
+  install   set up Podman, the reelanvil user and /opt/ReelAnvil (--service adds systemd units)
+  upgrade   update the binary, compose.yaml and images of a system install (--dry-run)
+  uninstall remove what install set up (--yes skips the questions; --delete-data also deletes settings and media)
   version   print the build version
 
-Flags for serve and doctor:
+Flags for serve and doctor (install, upgrade and uninstall take --yes, --dir, --port):
 `
 
 func main() {
@@ -32,7 +35,9 @@ func main() {
 	case "serve":
 		run = app.Serve
 	case "doctor":
-		run = app.Doctor
+		os.Exit(runDoctor(os.Args[2:]))
+	case "install", "upgrade", "uninstall":
+		os.Exit(runInstall(command, os.Args[2:]))
 	case "version", "--version":
 		fmt.Println("reelanvil", app.Version)
 		return

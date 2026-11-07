@@ -29,7 +29,7 @@ var Version = "0.9.2-dev"
 
 // DefaultAddr listens on every interface so the instance is reachable on the
 // LAN. It has no authentication: trusted networks only.
-const DefaultAddr = "0.0.0.0:8080"
+const DefaultAddr = "0.0.0.0:4747"
 
 // Options configure the web server.
 type Options struct {
@@ -344,7 +344,7 @@ func (s *Server) handler() http.Handler {
 	return localRequest(mux, s.hosts)
 }
 
-// displayAddr turns a wildcard listener such as 0.0.0.0:8080 into a URL host a
+// displayAddr turns a wildcard listener such as 0.0.0.0:4747 into a URL host a
 // browser on this machine can open.
 func displayAddr(a net.Addr) string {
 	tcp, ok := a.(*net.TCPAddr)

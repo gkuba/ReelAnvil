@@ -1,6 +1,6 @@
 # ReelAnvil security requirements
 
-Security applies even to loopback and internal deployments. The current prototype is unauthenticated. It listens on `0.0.0.0:8080` by default for trusted-LAN use (configurable in Settings → General → Network, or loopback-only with `127.0.0.1`), but it must never be exposed to the internet through port forwarding, a tunnel or a public proxy.
+Security applies even to loopback and internal deployments. The current prototype is unauthenticated. It listens on `0.0.0.0:4747` by default for trusted-LAN use (configurable in Settings → General → Network, or loopback-only with `127.0.0.1`), but it must never be exposed to the internet through port forwarding, a tunnel or a public proxy.
 
 ## Secrets and integrations
 
@@ -21,7 +21,7 @@ Security applies even to loopback and internal deployments. The current prototyp
 
 ## Current controls
 
-- Listener defaults to `0.0.0.0:8080`; any non-loopback address prints and logs a no-authentication warning. Saved addresses must be IP literals or `localhost` (no DNS); a restart refuses an address it cannot bind, so the server never stops without a replacement.
+- Listener defaults to `0.0.0.0:4747`; any non-loopback address prints and logs a no-authentication warning. Saved addresses must be IP literals or `localhost` (no DNS); a restart refuses an address it cannot bind, so the server never stops without a replacement.
 - Host check (DNS-rebinding defense): a loopback server accepts only `localhost` and loopback IPs; a LAN server also accepts IP literals, the machine's host name and the allowed host names (Settings, or `--allowed-hosts`). Any other `Host` gets `421`.
 - POSTs must be same-origin by Fetch Metadata and by Origin/Referer; `Origin: null` is accepted only with `Sec-Fetch-Site: same-origin`. Bodies are capped at 1 MiB.
 - Headers: `Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`, plus `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`.

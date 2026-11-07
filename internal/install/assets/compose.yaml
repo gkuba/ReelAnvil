@@ -1,0 +1,31 @@
+# ReelAnvil helper services. Ports bind to 127.0.0.1 only: the services have no auth.
+# Images track :latest (maintainer's choice, 2026-11-05).
+services:
+  ollama:
+    image: docker.io/ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ./ollama:/root/.ollama
+
+  whisper:
+    image: docker.io/linuxserver/faster-whisper:latest
+    restart: unless-stopped
+    environment:
+      # Rootless: container root maps to the reelanvil user, so files in ./whisper stay reelanvil's.
+      PUID: "0"
+      PGID: "0"
+      WHISPER_MODEL: tiny-int8
+      WHISPER_LANG: en
+    ports:
+      - "127.0.0.1:10300:10300"
+    volumes:
+      - ./whisper:/config
+
+  media:
+    # FFmpeg + yt-dlp + Deno, rebuilt daily; yt-dlp follows the image's own pin.
+    image: docker.io/nandyalu/python-ffmpeg:latest
+    restart: unless-stopped
+    volumes:
+      - /opt/ReelAnvil/media:/opt/ReelAnvil/media

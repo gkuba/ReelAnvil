@@ -177,7 +177,7 @@ func TestRestartRendersReconnectPage(t *testing.T) {
 	}
 	w := postForm(t, h, "127.0.0.1:8080", "/system/restart", "", "same-origin", "http://127.0.0.1:8080", "")
 	body := w.Body.String()
-	if w.Code != http.StatusOK || !strings.Contains(body, `<meta http-equiv="refresh" content="3;url=http://127.0.0.1:8080/settings">`) || strings.Contains(body, "restart-note") {
+	if w.Code != http.StatusOK || !strings.Contains(body, `<meta http-equiv="refresh" content="3;url=http://127.0.0.1:4747/settings">`) || strings.Contains(body, "restart-note") {
 		t.Fatalf("status=%d body=%s", w.Code, body)
 	}
 	select {

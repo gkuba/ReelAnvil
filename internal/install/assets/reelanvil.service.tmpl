@@ -1,0 +1,15 @@
+# Managed by "reelanvil install". Edits are overwritten by upgrade and doctor --repair.
+[Unit]
+Description=ReelAnvil web app
+After=network-online.target
+Wants=network-online.target reelanvil-worker.service
+
+[Service]
+User={{.User}}
+Group={{.User}}
+WorkingDirectory={{.Root}}/server
+ExecStart={{.Root}}/server/reelanvil serve --data-dir {{.Root}}/server --addr 0.0.0.0:{{.Port}}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

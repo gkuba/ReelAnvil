@@ -2,6 +2,12 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-11-06 — Build 0.9.2: Go installer (pushed to `dev`)
+
+- **Changes:** `install [--service]`, `upgrade [--dry-run]`, `doctor [--repair [--clean]]` and `uninstall` with `--yes`, `--dir` (default `/opt/ReelAnvil`) and `--port` (default 4747); `serve` now defaults to `0.0.0.0:4747` too, so the Settings page shows the real port. In `internal/install/` and `cmd/reelanvil/install.go`, following the manual install runbook proven on the Debian 13 reference host.
+- **Verified:** `gofmt`, `go vet`, `go test -race` and `scripts/build-dev.sh` pass. On the Debian 13 reference host: install, a real `upgrade`, `doctor --repair --clean`, and 5 clean loops (install `--service --yes` → validate → uninstall `--yes` incl. Podman → reboot → host snapshot identical to the pre-install baseline), all checks passing each time: LAN 200 on 4747, runs as `reelanvil`, 3 containers, Ollama, Whisper port, media FFmpeg/yt-dlp/Deno, 10300/11434 on loopback only. A bug review then found 10 issues (deleting an existing `--dir` or the user's own Podman storage, purging later dependents, root following symlinks in service-owned folders, `uninstall --yes` deleting data, `install --service` ignored on an existing install, uninstall reruns, `userdel` of a pre-existing user, ownership after a UID change, `doctor` exit code); all fixed with regression tests, then 1 more clean loop passed and Settings showed port 4747 on the host.
+- **Not verified:** plain `install` without `--service` in the loops; upgrading from an older install; the ufw rule and Docker-only prompt (not built); the maintainer's visual review.
+
 ## 2026-10-31 — Build 0.9.2: LAN listening and network settings (`1ef80fd`, pushed to `dev`)
 
 - **Changes:** listen address and allowed host names became saved settings (default `0.0.0.0:8080`) with a Network card on Settings → General; `POST /system/restart` checks the new address can be bound, renders a reconnect page, shuts down gracefully and re-executes the binary; a pending-restart banner on every page; Host policy accepts IP literals, the machine's name and listed names only when not on loopback; `--addr` / `--allowed-hosts` override per run; README not-for-internet disclaimer.

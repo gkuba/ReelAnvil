@@ -30,7 +30,7 @@ The planned workflow is:
 
 The current development build provides the themed local web interface, persistent SQLite setup, campaign records and tracking, and a global icon choice independent of the active interface theme. Content Rewards and Vyro discovery are explicitly unavailable: ReelAnvil does not scrape sites, log in, apply to campaigns, find social posts, or submit content. Jobs, media processing, AI, and worker pages remain placeholders.
 
-> **Not for the public internet.** ReelAnvil has no authentication yet. By default it listens on `0.0.0.0:8080` so other machines on your local network can reach it; change the bind address, port and allowed host names under **Settings → General → Network** (then **Restart ReelAnvil**), or set `127.0.0.1` to keep it on one machine. Anyone who can reach that port can use and change the instance. Use it only on a network you trust, and never port-forward it, publish it through a tunnel, or put it behind a public reverse proxy. Follow standard practice if you do open it up: allow the port only from your LAN subnet in the host firewall (for example `ufw allow from 192.168.1.0/24 to any port 8080`), keep the host patched, and run ReelAnvil as an unprivileged user.
+> **Not for the public internet.** ReelAnvil has no authentication yet. By default it listens on `0.0.0.0:4747` so other machines on your local network can reach it; change the bind address, port and allowed host names under **Settings → General → Network** (then **Restart ReelAnvil**), or set `127.0.0.1` to keep it on one machine. Anyone who can reach that port can use and change the instance. Use it only on a network you trust, and never port-forward it, publish it through a tunnel, or put it behind a public reverse proxy. Follow standard practice if you do open it up: allow the port only from your LAN subnet in the host firewall (for example `ufw allow from 192.168.1.0/24 to any port 4747`), keep the host patched, and run ReelAnvil as an unprivileged user.
 
 ## Intended technical direction
 
@@ -48,7 +48,7 @@ cd bin/Release
 ./reelanvil serve
 ```
 
-Open <http://127.0.0.1:8080> and stop the server with **Ctrl+C**. See [development and test instructions](docs/DEVELOPMENT.md) for the Go checks, local database behavior, and review steps.
+Open <http://127.0.0.1:4747> and stop the server with **Ctrl+C**. See [development and test instructions](docs/DEVELOPMENT.md) for the Go checks, local database behavior, and review steps.
 
 For current plans and decisions, see:
 

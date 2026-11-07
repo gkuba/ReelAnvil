@@ -31,7 +31,7 @@ go mod verify
 The maintainer tests by running the binary from `bin/Release`:
 
 ```sh
-cd bin/Release && ./reelanvil serve      # listens on 0.0.0.0:8080 (Settings → General → Network), Ctrl+C to stop
+cd bin/Release && ./reelanvil serve      # listens on 0.0.0.0:4747 (Settings → General → Network), Ctrl+C to stop
 ```
 
 - **`bin/Release/settings/`, `data/` and `logs/` are the maintainer's real data.** The build script replaces only the executable. Never write test data there. For browser or migration testing, copy the runtime to a scratch directory and use `./reelanvil serve --data-dir <copy> --addr 127.0.0.1:18089`.
@@ -51,13 +51,15 @@ cd bin/Release && ./reelanvil serve      # listens on 0.0.0.0:8080 (Settings →
 - One Go module. Separate processes: `reelanvil serve`, later `reelanvil worker`; `reelanvil doctor` for diagnostics. The web server never gets Docker socket access; only the authenticated worker talks to Docker.
 - Debian 13 / Linux first. Windows and macOS are untested and must not be claimed as supported.
 - SQLite for persistent state, with ordered, transactional migrations in `internal/store/store.go`. Refuse unknown future schema versions. Never silently delete user data.
-- **The server is unauthenticated.** It defaults to `0.0.0.0:8080` for trusted-LAN use (Settings → General → Network) and must never be pitched as internet-safe. Keep the Host policy (foreign names rejected), the startup warning, the bind pre-check before restart, the Host check, same-origin POST checks, body cap, timeouts and security headers. Keep the CSP free of `unsafe-inline`: no inline `<script>`, `<style>` or `style=""` in templates (a test enforces this).
+- **The server is unauthenticated.** It defaults to `0.0.0.0:4747` for trusted-LAN use (Settings → General → Network) and must never be pitched as internet-safe. Keep the Host policy (foreign names rejected), the startup warning, the bind pre-check before restart, the Host check, same-origin POST checks, body cap, timeouts and security headers. Keep the CSP free of `unsafe-inline`: no inline `<script>`, `<style>` or `style=""` in templates (a test enforces this).
 - The web UI lives in `internal/app/web/` (embedded templates, `app.css`, `app.js`). Built-in theme palettes are Go data in `internal/app/themes.go`; don't hard-code colours in CSS — use the theme tokens.
 - Upstream Docker images only, pinned after validation; no custom images, bundled third-party binaries or model weights.
 - Media ingestion must be authorized, originals preserved, jobs isolated by ID, and a human approves anything before it is posted. AI clip selection and independent AI review run in separate contexts.
 - Real stage progress, elapsed time and logs; **never show an ETA** or invented percentages. Storage caps block jobs safely instead of deleting data.
 - No required paid runtime services, no guaranteed-earnings claims, and no credentials, campaign data or media in source, logs, examples or release archives. Campaign discovery stays disabled until a platform's public API and permitted use are verified.
 - No remote deployment or installation on another host without the maintainer's explicit approval.
+- Access is not permission: having SSH or sudo on a host doesn't mean you can install, compile or change anything there. Discussing a layout or goal isn't a go-ahead; if unsure, ask.
+- Host setup follows a documented, minimal path that a new user can replicate with little knowledge (Sonarr/Radarr-style). Write each step in the install guide first, get approval, then run it on the reference host exactly as written, so the guide is proven to work. Prefer Debian's own packages over third-party repositories and keys.
 
 ## Documentation and packaging
 

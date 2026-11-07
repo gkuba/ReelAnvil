@@ -5,7 +5,7 @@
 - **Who decides:** the maintainer (gkuba) reviews by running the build from `bin/Release`. Their visual review is the acceptance step; automated tests don't replace it.
 - **Terminal etiquette:** when a sudo or interactive command is needed, ask the maintainer to run it in their single terminal tab instead of running it yourself or opening new tabs.
 - **Git:** don't add Claude as a co-author or contributor (no `Co-Authored-By` trailer) unless the maintainer asks. Commit or push only when asked.
-- **Browser checks:** run a scratch copy of the runtime on `127.0.0.1:18089` with `--data-dir`; the maintainer's own server normally uses `:8080`. Check desktop width and the 375px mobile preset.
+- **Browser checks:** run a scratch copy of the runtime on `127.0.0.1:18089` with `--data-dir`; the maintainer's own server normally uses `:4747`. Check desktop width and the 375px mobile preset.
 - **Feel of the project:** a finished-feeling, Sonarr-style self-hosted app with a Nordic-industrial dark UI (see `docs/design/`). Keep pages visually consistent — reuse the shared layout, `.card`, `.stats`, `.note`, `.btn` patterns and theme tokens rather than adding page-specific styling.
 - **Where things are:**
   - `cmd/reelanvil/` — CLI (`serve`, `doctor`, `version`; flags `--data-dir`, `--addr`, `--allowed-hosts`); network settings and restart in `internal/app/network.go`
