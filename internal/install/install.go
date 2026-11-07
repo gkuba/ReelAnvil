@@ -38,7 +38,7 @@ const (
 	markerFile = ".reelanvil-install"
 )
 
-//go:embed assets/compose.yaml assets/*.tmpl
+//go:embed assets/*.tmpl
 var assets embed.FS
 
 var podmanPackages = []string{"podman", "podman-compose"}
@@ -51,25 +51,29 @@ var rootChars = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 // checkRoot refuses install directories that are unclean, use unusual
 // characters or sit in or under system locations: install chowns the
 // directory, useradd makes it the home and uninstall can delete it.
-func checkRoot(root string) error {
+func checkRoot(root string) error { return checkDir("install directory", root) }
+
+// checkDir applies checkRoot's rules to any folder the installer creates or
+// mounts; what names it in the messages.
+func checkDir(what, root string) error {
 	if !filepath.IsAbs(root) || filepath.Clean(root) != root || strings.Count(root, "/") < 2 {
-		return fmt.Errorf("install directory %q must be a clean absolute path such as %s", root, DefaultRoot)
+		return fmt.Errorf("%s %q must be a clean absolute path such as %s", what, root, DefaultRoot)
 	}
 	if !rootChars.MatchString(root) {
-		return fmt.Errorf("install directory %q may only contain letters, digits and . _ - /", root)
+		return fmt.Errorf("%s %q may only contain letters, digits and . _ - /", what, root)
 	}
 	parts := strings.Split(root[1:], "/")
 	top := parts[0]
 	switch {
 	case strings.HasPrefix(top, "lib"):
-		return fmt.Errorf("install directory %q is a system location", root)
+		return fmt.Errorf("%s %q is a system location", what, root)
 	case top == "usr" || top == "etc" || top == "bin" || top == "sbin" || top == "boot" ||
 		top == "proc" || top == "sys" || top == "dev" || top == "run" || top == "root":
-		return fmt.Errorf("install directory %q is a system location", root)
+		return fmt.Errorf("%s %q is a system location", what, root)
 	case (top == "var" || top == "home" || top == "tmp") && len(parts) <= 2:
-		return fmt.Errorf("install directory %q is a system location", root)
+		return fmt.Errorf("%s %q is a system location", what, root)
 	case top == "var" && len(parts) >= 3 && parts[1] == "lib" && parts[2] == "containers":
-		return fmt.Errorf("install directory %q is a system location", root)
+		return fmt.Errorf("%s %q is a system location", what, root)
 	}
 	return nil
 }
@@ -418,9 +422,22 @@ func (i *Installer) renderUnit(st State, name string) ([]byte, error) {
 	return []byte(b.String()), nil
 }
 
-func (i *Installer) renderCompose(st State) []byte {
-	b, _ := assets.ReadFile("assets/compose.yaml")
-	return []byte(strings.ReplaceAll(string(b), DefaultRoot, st.Root))
+// renderCompose fills the Compose template from the install record and the
+// settings file (Whisper model and language, media root).
+func (i *Installer) renderCompose(st State) ([]byte, error) {
+	d, err := i.composeValues(st)
+	if err != nil {
+		return nil, err
+	}
+	t, err := template.ParseFS(assets, "assets/compose.yaml.tmpl")
+	if err != nil {
+		return nil, err
+	}
+	var b strings.Builder
+	if err := t.Execute(&b, d); err != nil {
+		return nil, err
+	}
+	return []byte(b.String()), nil
 }
 
 func (i *Installer) chown(st State, gid int, path string) error {
@@ -478,12 +495,41 @@ func (i *Installer) ensureLayout(st State, gid int) error {
 	if err := i.mkdir(st, gid, st.Root, 0o750); err != nil {
 		return err
 	}
-	for _, d := range []string{"server", "containers", "media"} {
+	for _, d := range []string{"server", "containers"} {
 		if err := i.mkdir(st, gid, filepath.Join(st.Root, d), 0o755); err != nil {
 			return err
 		}
 	}
+	if err := i.ensureMediaFolders(st, gid); err != nil {
+		return err
+	}
 	return i.ensureMarker(st.Root)
+}
+
+// ensureMediaFolders creates the media root and its logical sub-folders for
+// the service user. A folder that already exists is left exactly as it is, so
+// a media root on another disk, or one with data in it, is never re-owned.
+func (i *Installer) ensureMediaFolders(st State, gid int) error {
+	root, err := i.mediaRoot(st)
+	if err != nil {
+		return err
+	}
+	for _, p := range append([]string{root}, mediaFolderPaths(root)...) {
+		if _, err := os.Lstat(p); err == nil {
+			if err := refuseSymlink(p); err != nil {
+				return err
+			}
+			continue
+		}
+		mode := os.FileMode(0o750)
+		if p == root {
+			mode = 0o755
+		}
+		if err := i.mkdir(st, gid, p, mode); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ensureMarker writes the root-owned marker file into Root.
@@ -546,7 +592,10 @@ func (i *Installer) ensureCompose(st State, gid int, overwrite bool) (bool, erro
 	if err := refuseSymlink(dst); err != nil {
 		return false, err
 	}
-	want := i.renderCompose(st)
+	want, err := i.renderCompose(st)
+	if err != nil {
+		return false, err
+	}
 	if old, err := os.ReadFile(dst); err == nil {
 		if string(old) == string(want) || !overwrite {
 			return false, nil
@@ -653,8 +702,9 @@ func (i *Installer) Install() error {
 		i.say("  - apt install %s (Debian packages)", strings.Join(missing, " "))
 	}
 	i.say("  - system user %s (rootless Podman, linger)", User)
-	i.say("  - %s with server/, containers/, media/; the binary and the bundled compose.yaml", st.Root)
-	i.say("  - server/settings/config.json: the addresses of the container services (existing values are kept)")
+	i.say("  - %s with server/ and containers/; the binary and the compose.yaml rendered from the settings", st.Root)
+	i.say("  - the media folder (%s by default) with %s, owned by %s", filepath.Join(st.Root, defaultMediaDir), strings.Join(mediaFolders, ", "), User)
+	i.say("  - server/settings/config.json: service addresses, Whisper model and language, media root (existing values are kept)")
 	if st.Service {
 		i.say("  - systemd units %s and %s, enabled and started on port %d", serverUnit, workerUnit, st.Port)
 	} else {

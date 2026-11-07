@@ -1,3 +1,5 @@
+# Managed by "reelanvil install". Edits are overwritten by upgrade. WHISPER_MODEL, WHISPER_LANG and the media mount
+# come from server/settings/config.json (Settings > Transcription and Paths & Storage).
 # ReelAnvil helper services. Ports bind to 127.0.0.1 only: the services have no auth.
 # Images track :latest (maintainer's choice, 2026-11-05).
 services:
@@ -16,8 +18,8 @@ services:
       # Rootless: container root maps to the reelanvil user, so files in ./whisper stay reelanvil's.
       PUID: "0"
       PGID: "0"
-      WHISPER_MODEL: tiny-int8
-      WHISPER_LANG: en
+      WHISPER_MODEL: "{{.WhisperModel}}"
+      WHISPER_LANG: "{{.WhisperLang}}"
     ports:
       - "127.0.0.1:10300:10300"
     volumes:
@@ -28,4 +30,4 @@ services:
     image: docker.io/nandyalu/python-ffmpeg:latest
     restart: unless-stopped
     volumes:
-      - /opt/ReelAnvil/media:/opt/ReelAnvil/media
+      - "{{.MediaRoot}}:{{.MediaRoot}}"

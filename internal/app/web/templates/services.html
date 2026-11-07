@@ -1,0 +1,21 @@
+{{define "content"}}
+{{template "devbar" .}}
+<h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg> Services</h1>
+<p>Health of the services ReelAnvil depends on. Checks run from this web app with short time limits.</p>
+{{template "flash" .}}
+<div class="card">
+<h2>Summary</h2>
+<p class="service-status {{if .Ready}}status-ok{{else}}status-warn{{end}}">{{.Summary}}</p>
+{{if .Actions}}<ul class="actions-list">
+{{range .Actions}}<li>{{.Text}}{{if .Command}} Run <code>{{.Command}}</code>.{{end}}{{if .Link}} <a class="link" href="{{.Link}}">{{.LinkLabel}}</a>{{end}}</li>
+{{end}}</ul>{{else}}<p>The container engine and media container are checked by <code>sudo reelanvil doctor</code>, which the web app cannot run.</p>{{end}}
+<div class="actions"><a class="btn secondary" href="/services">Check again</a><span class="muted">Last checked {{.Checked}}</span></div>
+</div>
+<div class="stats">
+{{range .Cards}}<div class="card service-card"><h2>{{.Name}}</h2>
+<div class="service-status status-{{.Level}}">{{.Status}}</div>
+<dl class="facts">{{range .Facts}}<dt>{{.Label}}</dt><dd>{{.Value}}</dd>{{end}}</dl>
+</div>
+{{end}}</div>
+<footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
+{{end}}

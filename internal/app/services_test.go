@@ -45,7 +45,7 @@ func TestLoadFillsServiceDefaultsForOlderVersions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c.Version != 4 || c.InstanceName != "Kept" || c.OllamaAddress != "127.0.0.1:11434" || c.WhisperAddress != "127.0.0.1:10300" ||
+		if c.Version != 5 || c.InstanceName != "Kept" || c.OllamaAddress != "127.0.0.1:11434" || c.WhisperAddress != "127.0.0.1:10300" ||
 			c.MediaEngine != "podman" || c.FFmpegPath != "ffmpeg" || c.YtDlpPath != "yt-dlp" {
 			t.Errorf("v%s migrated to %+v", v, c)
 		}
@@ -103,7 +103,7 @@ func TestSaveServiceSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if saved.OllamaAddress != "gpu-box.lan:11434" || saved.WhisperAddress != "10.1.1.1:10300" || saved.MediaEngine != "host" ||
-		saved.FFmpegPath != "/usr/local/bin/ffmpeg" || saved.YtDlpPath != "yt-dlp" || saved.Version != 4 {
+		saved.FFmpegPath != "/usr/local/bin/ffmpeg" || saved.YtDlpPath != "yt-dlp" || saved.Version != 5 {
 		t.Fatalf("saved %+v", saved)
 	}
 	page := get(t, s.handler(), "/settings/ai").Body.String()

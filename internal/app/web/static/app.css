@@ -187,3 +187,19 @@ input[type=search]{max-width:330px}
   .form-grid .wide{grid-column:auto}
   .page-top{align-items:flex-start;flex-direction:column}
 }
+
+/* ---- Service status ---- */
+.status-ok{color:var(--success)}
+.status-warn{color:var(--warm)}
+.status-off{color:var(--muted)}
+.service-status{font-size:22px;font-weight:700;margin:0 0 6px}
+p.service-status{margin:0 0 10px}
+.status-line{margin:10px 0}
+.status-line span{font-weight:700}
+.facts{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);gap:6px 14px;margin:10px 0 0;font-size:14px}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.actions-list{margin:0 0 12px;padding-left:20px}
+.actions-list li{margin:6px 0}
+@media (max-width:600px){.facts{grid-template-columns:minmax(0,1fr)}.facts dd{margin-bottom:6px}}
+a.link{color:var(--accent)}

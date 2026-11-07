@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,9 @@ const (
 	DefaultWhisperAddr = "127.0.0.1:10300"
 	DefaultFFmpegPath  = "ffmpeg"
 	DefaultYtDlpPath   = "yt-dlp"
+
+	DefaultWhisperModel = "tiny-int8"
+	DefaultWhisperLang  = "en"
 
 	EnginePodman = "podman"
 	EngineDocker = "docker"
@@ -41,6 +45,37 @@ const (
 	maxToolPath    = 512
 	maxListedNames = 12
 )
+
+var (
+	// whisperNamePattern covers Whisper model names and language codes; the
+	// installer puts them in the Compose file, so the set is deliberately small.
+	whisperNamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+	// modelNamePattern covers Ollama model references such as qwen2.5:3b or
+	// registry.example/team/model:tag.
+	modelNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,127}$`)
+)
+
+// normalizeWhisperName checks a Whisper model name or language code; empty
+// means the default.
+func normalizeWhisperName(v, def string) (string, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return def, nil
+	}
+	if !whisperNamePattern.MatchString(v) {
+		return "", errors.New("use up to 64 letters, digits, dots, dashes or underscores")
+	}
+	return v, nil
+}
+
+// normalizeModelName checks an Ollama model name; empty means none.
+func normalizeModelName(v string) (string, error) {
+	v = strings.TrimSpace(v)
+	if v != "" && !modelNamePattern.MatchString(v) {
+		return "", errors.New("model names use letters, digits and . _ : / @ - (up to 128 characters)")
+	}
+	return v, nil
+}
 
 // validEngine reports whether v is a known media engine.
 func validEngine(v string) bool {
@@ -108,6 +143,18 @@ func (c *Settings) fillServices() (err error) {
 	} else if !validEngine(c.MediaEngine) {
 		return fmt.Errorf("invalid media_engine %q", c.MediaEngine)
 	}
+	// Settings from before version 5 have none of the fields below.
+	fill("whisper_model", &c.WhisperModel, DefaultWhisperModel, func(v string) (string, error) { return normalizeWhisperName(v, DefaultWhisperModel) })
+	fill("whisper_language", &c.WhisperLanguage, DefaultWhisperLang, func(v string) (string, error) { return normalizeWhisperName(v, DefaultWhisperLang) })
+	fill("hunter_model", &c.HunterModel, "", normalizeModelName)
+	fill("reviewer_model", &c.ReviewerModel, "", normalizeModelName)
+	fill("media_root", &c.MediaRoot, "", normalizeMediaRoot)
+	if err != nil {
+		return err
+	}
+	if c.StorageLimitGB < 0 || c.StorageLimitGB > maxStorageLimitGB {
+		return fmt.Errorf("invalid storage_limit_gb %d", c.StorageLimitGB)
+	}
 	return nil
 }
 
@@ -129,6 +176,12 @@ func (s *Server) updateSettings(change func(*Settings)) error {
 // serviceSave handles a settings form POST: parse validates the form and
 // returns the change to apply. GET shows the page.
 func (s *Server) serviceSave(path, label string, parse func(*http.Request) (func(*Settings), error)) http.HandlerFunc {
+	return s.serviceSaveThen(path, label, parse, nil)
+}
+
+// serviceSaveThen is serviceSave with a follow-up: after a successful save,
+// after gets the saved settings and returns text to add to the message.
+func (s *Server) serviceSaveThen(path, label string, parse func(*http.Request) (func(*Settings), error), after func(Settings) string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
 			s.page(w, r)
@@ -149,7 +202,14 @@ func (s *Server) serviceSave(path, label string, parse func(*http.Request) (func
 		if err != nil {
 			setFlash(w, label+" not saved: "+err.Error()+".", true)
 		} else {
-			setFlash(w, label+" saved.", false)
+			msg := label + " saved."
+			if after != nil {
+				s.mu.Lock()
+				saved := s.cfg
+				s.mu.Unlock()
+				msg += after(saved)
+			}
+			setFlash(w, clip(msg, 480), false)
 		}
 		http.Redirect(w, r, path, http.StatusSeeOther)
 	}
@@ -201,6 +261,24 @@ func applyServiceForm(c *Settings, r *http.Request) error {
 	if err == nil && r.Form.Has("ytdlp_path") {
 		c.YtDlpPath, err = normalizeToolPath(r.FormValue("ytdlp_path"), DefaultYtDlpPath)
 	}
+	if err == nil && r.Form.Has("hunter_model") {
+		c.HunterModel, err = normalizeModelName(r.FormValue("hunter_model"))
+	}
+	if err == nil && r.Form.Has("reviewer_model") {
+		c.ReviewerModel, err = normalizeModelName(r.FormValue("reviewer_model"))
+	}
+	if err == nil && r.Form.Has("whisper_model") {
+		c.WhisperModel, err = normalizeWhisperName(r.FormValue("whisper_model"), DefaultWhisperModel)
+	}
+	if err == nil && r.Form.Has("whisper_language") {
+		c.WhisperLanguage, err = normalizeWhisperName(r.FormValue("whisper_language"), DefaultWhisperLang)
+	}
+	if err == nil && r.Form.Has("media_root") {
+		c.MediaRoot, err = normalizeMediaRoot(r.FormValue("media_root"))
+	}
+	if err == nil && r.Form.Has("storage_limit_gb") {
+		c.StorageLimitGB, err = parseStorageLimit(r.FormValue("storage_limit_gb"))
+	}
 	return err
 }
 
@@ -215,8 +293,24 @@ func clip(s string, max int) string {
 
 func (s *Server) aiSettings(w http.ResponseWriter, r *http.Request) {
 	s.serviceSave("/settings/ai", "AI settings", func(r *http.Request) (func(*Settings), error) {
+		var c Settings
 		addr, err := normalizeServiceAddress(r.FormValue("ollama_address"))
-		return func(c *Settings) { c.OllamaAddress = addr }, err
+		if err != nil {
+			return nil, err
+		}
+		// The role fields are optional so a form with only the address still works.
+		if err := applyServiceForm(&c, r); err != nil {
+			return nil, err
+		}
+		return func(next *Settings) {
+			next.OllamaAddress = addr
+			if r.Form.Has("hunter_model") {
+				next.HunterModel = c.HunterModel
+			}
+			if r.Form.Has("reviewer_model") {
+				next.ReviewerModel = c.ReviewerModel
+			}
+		}, nil
 	})(w, r)
 }
 
@@ -226,8 +320,23 @@ func (s *Server) aiTest(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) transcriptionSettings(w http.ResponseWriter, r *http.Request) {
 	s.serviceSave("/settings/transcription", "Transcription settings", func(r *http.Request) (func(*Settings), error) {
+		var c Settings
 		addr, err := normalizeServiceAddress(r.FormValue("whisper_address"))
-		return func(c *Settings) { c.WhisperAddress = addr }, err
+		if err != nil {
+			return nil, err
+		}
+		if err := applyServiceForm(&c, r); err != nil {
+			return nil, err
+		}
+		return func(next *Settings) {
+			next.WhisperAddress = addr
+			if r.Form.Has("whisper_model") {
+				next.WhisperModel = c.WhisperModel
+			}
+			if r.Form.Has("whisper_language") {
+				next.WhisperLanguage = c.WhisperLanguage
+			}
+		}, nil
 	})(w, r)
 }
 
@@ -302,31 +411,55 @@ func ollamaGet(ctx context.Context, addr, path string, out any) error {
 	return nil
 }
 
-// testOllama asks Ollama for its version and installed models.
-func testOllama(addr string) (string, bool) {
+// ollamaStatus is what a probe of Ollama found.
+type ollamaStatus struct {
+	Addr, Version string
+	Reachable     bool
+	Err           string // set when Reachable is false
+	Models        []string
+	TagsErr       string // the model list could not be read
+}
+
+// probeOllama asks Ollama for its version and installed models.
+func probeOllama(addr string) ollamaStatus {
+	st := ollamaStatus{Addr: addr}
 	ctx, cancel := context.WithTimeout(context.Background(), serviceTimeout)
 	defer cancel()
 	var ver struct {
 		Version string `json:"version"`
 	}
 	if err := ollamaGet(ctx, addr, "/api/version", &ver); err != nil {
-		return fmt.Sprintf("Could not reach Ollama at %s: %s.", addr, serviceError(err)), true
+		st.Err = serviceError(err)
+		return st
 	}
+	st.Reachable, st.Version = true, ver.Version
 	var tags struct {
 		Models []struct {
 			Name string `json:"name"`
 		} `json:"models"`
 	}
 	if err := ollamaGet(ctx, addr, "/api/tags", &tags); err != nil {
-		return fmt.Sprintf("Connected to Ollama %s at %s, but the model list could not be read: %s.", ver.Version, addr, serviceError(err)), true
+		st.TagsErr = serviceError(err)
+		return st
 	}
-	var names []string
 	for _, m := range tags.Models {
 		if m.Name != "" {
-			names = append(names, m.Name)
+			st.Models = append(st.Models, m.Name)
 		}
 	}
-	return fmt.Sprintf("Connected to Ollama %s at %s. %s", ver.Version, addr, modelSummary("Installed models", "No models installed yet.", names)), false
+	return st
+}
+
+// testOllama reports on a probe of Ollama.
+func testOllama(addr string) (string, bool) {
+	st := probeOllama(addr)
+	switch {
+	case !st.Reachable:
+		return fmt.Sprintf("Could not reach Ollama at %s: %s.", addr, st.Err), true
+	case st.TagsErr != "":
+		return fmt.Sprintf("Connected to Ollama %s at %s, but the model list could not be read: %s.", st.Version, addr, st.TagsErr), true
+	}
+	return fmt.Sprintf("Connected to Ollama %s at %s. %s", st.Version, addr, modelSummary("Installed models", "No models installed yet.", st.Models)), false
 }
 
 // modelSummary lists up to maxListedNames names.
@@ -393,30 +526,53 @@ func readWyomingInfo(conn net.Conn) (wyomingInfo, error) {
 	return info, json.Unmarshal(data, &info)
 }
 
-// testWhisper opens a TCP connection and asks the Wyoming service to describe itself.
-func testWhisper(addr string) (string, bool) {
+// whisperStatus is what a probe of the Wyoming service found.
+type whisperStatus struct {
+	Addr      string
+	Reachable bool   // a TCP connection was accepted
+	Err       string // why it was not
+	InfoErr   string // reachable, but no service info came back
+	Models    []string
+}
+
+// probeWhisper opens a TCP connection and asks the Wyoming service to describe itself.
+func probeWhisper(addr string) whisperStatus {
+	st := whisperStatus{Addr: addr}
 	conn, err := net.DialTimeout("tcp", addr, serviceTimeout)
 	if err != nil {
-		return fmt.Sprintf("Could not connect to %s: %s.", addr, serviceError(err)), true
+		st.Err = serviceError(err)
+		return st
 	}
 	defer conn.Close()
+	st.Reachable = true
 	_ = conn.SetDeadline(time.Now().Add(serviceTimeout))
 	info, err := readWyomingInfo(conn)
 	if err != nil {
-		return fmt.Sprintf("Connected to %s, but it sent no service info (%s).", addr, serviceError(err)), false
+		st.InfoErr = serviceError(err)
+		return st
 	}
-	var names []string
 	for _, p := range info.ASR {
 		for _, m := range p.Models {
 			if m.Name != "" {
-				names = append(names, m.Name)
+				st.Models = append(st.Models, m.Name)
 			}
 		}
 	}
-	if len(names) == 0 {
+	return st
+}
+
+// testWhisper reports on a probe of the Wyoming service.
+func testWhisper(addr string) (string, bool) {
+	st := probeWhisper(addr)
+	switch {
+	case !st.Reachable:
+		return fmt.Sprintf("Could not connect to %s: %s.", addr, st.Err), true
+	case st.InfoErr != "":
+		return fmt.Sprintf("Connected to %s, but it sent no service info (%s).", addr, st.InfoErr), false
+	case len(st.Models) == 0:
 		return fmt.Sprintf("Connected to %s. It reported no speech recognition models.", addr), false
 	}
-	return fmt.Sprintf("Connected to %s. %s", addr, modelSummary("Speech recognition models", "", names)), false
+	return fmt.Sprintf("Connected to %s. %s", addr, modelSummary("Speech recognition models", "", st.Models)), false
 }
 
 // testMedia checks the media engine. Containers belong to the worker, so only

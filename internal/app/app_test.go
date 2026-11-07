@@ -20,8 +20,9 @@ import (
 
 func TestSettingsRoundTrip(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	original := Settings{Version: 4, InstanceName: "Test", Theme: "aurora", IconVariant: "molten-orange", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "molten-orange", "custom": "amethyst"}, ListenAddress: "192.0.2.10:9000", AllowedHosts: []string{"reelanvil.lan"},
-		OllamaAddress: "192.0.2.20:11434", WhisperAddress: "whisper.lan:10300", MediaEngine: "host", FFmpegPath: "/usr/bin/ffmpeg", YtDlpPath: "yt-dlp"}
+	original := Settings{Version: 5, InstanceName: "Test", Theme: "aurora", IconVariant: "molten-orange", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "molten-orange", "custom": "amethyst"}, ListenAddress: "192.0.2.10:9000", AllowedHosts: []string{"reelanvil.lan"},
+		OllamaAddress: "192.0.2.20:11434", WhisperAddress: "whisper.lan:10300", MediaEngine: "host", FFmpegPath: "/usr/bin/ffmpeg", YtDlpPath: "yt-dlp",
+		HunterModel: "qwen2.5:3b", ReviewerModel: "llama3.2:3b", WhisperModel: "base", WhisperLanguage: "de", MediaRoot: "/srv/reel/media", StorageLimitGB: 200}
 	if err := save(p, original); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestSettingsVersionOneMigratesToGlobalIconDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Version != 4 || c.InstanceName != "Kept" || c.Theme != "aurora" || c.IconVariant != "blue-violet" {
+	if c.Version != 5 || c.InstanceName != "Kept" || c.Theme != "aurora" || c.IconVariant != "blue-violet" {
 		t.Fatalf("unexpected migrated settings: %+v", c)
 	}
 }
@@ -58,7 +59,7 @@ func TestSettingsVersionTwoPreservesActiveThemeIconAndAllLegacyPreferences(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Version != 4 || c.Theme != "dracula-dark" || c.IconVariant != "amethyst" {
+	if c.Version != 5 || c.Theme != "dracula-dark" || c.IconVariant != "amethyst" {
 		t.Fatalf("active theme appearance changed on upgrade: %+v", c)
 	}
 	if c.ThemeIcons["aurora"] != "molten-orange" || c.ThemeIcons["custom-copy"] != "amethyst" {
@@ -86,7 +87,7 @@ func TestFreshSettingsDefaultToDraculaAndBlueViolet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Version != 4 || c.Theme != "dracula-dark" || c.IconVariant != "blue-violet" {
+	if c.Version != 5 || c.Theme != "dracula-dark" || c.IconVariant != "blue-violet" {
 		t.Fatalf("unexpected fresh defaults: %+v", c)
 	}
 }
@@ -461,7 +462,7 @@ func TestDefaults(t *testing.T) {
 }
 func TestUnsupportedVersion(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(p, []byte(`{"version":5}`), 0600); err != nil {
+	if err := os.WriteFile(p, []byte(`{"version":6}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := load(p); err == nil {

@@ -1,14 +1,14 @@
 {{define "content"}}
 {{template "devbar" .}}
 <h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5m8-5v5M5 8h14v3a7 7 0 0 1-14 0V8zm7 10v4"/></svg> Connectors</h1>
-<p>External services and integrations will be configured here.</p>
-<div class="card narrow-fields">
-<h2>Connector configuration</h2>
-<label for="connector-endpoint">Service endpoint</label>
-<input id="connector-endpoint" disabled placeholder="Not yet configurable">
-<label for="connector-key">API credential</label>
-<input id="connector-key" disabled placeholder="Not yet configurable">
-<p>Connectors are not implemented. No connection is attempted or saved.</p>
+<p>How campaigns get into ReelAnvil.</p>
+<div class="card">
+<h2>Campaign sources</h2>
+<dl class="facts">
+<dt>Manual campaigns</dt><dd><span class="status-ok">Available</span> Add and track campaigns yourself on the <a class="link" href="/campaigns">Campaigns page</a>.</dd>
+<dt>Platform discovery</dt><dd><span class="status-off">Disabled</span> Finding campaigns on a platform stays off until that platform's public API and its permitted use have been verified.</dd>
+</dl>
+<div class="note">There is nothing to configure here. ReelAnvil asks for no platform credentials and makes no connection to any platform.</div>
 </div>
 <footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
 {{end}}

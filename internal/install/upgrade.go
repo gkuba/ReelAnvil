@@ -23,7 +23,15 @@ func (i *Installer) Upgrade() error {
 
 	binary := filepath.Join(st.Root, "server", "reelanvil")
 	newBin, oldBin := fileHash(i.Exe), fileHash(binary)
-	composeDiffers := fileHash(filepath.Join(st.Root, "containers", "compose.yaml")) != hashBytes(i.renderCompose(st))
+	wantCompose, err := i.renderCompose(st)
+	if err != nil {
+		return err
+	}
+	composeDiffers := fileHash(filepath.Join(st.Root, "containers", "compose.yaml")) != hashBytes(wantCompose)
+	media, err := i.mediaRoot(st)
+	if err != nil {
+		return err
+	}
 	unitsDiffer := false
 	if st.Service {
 		for _, name := range []string{serverUnit, workerUnit} {
@@ -42,7 +50,9 @@ func (i *Installer) Upgrade() error {
 	if st.Service {
 		i.say("  - systemd units: %s", yesNo(unitsDiffer, "rewrite", "unchanged"))
 	}
-	i.say("  - settings: add any missing container service fields to server/settings/config.json (existing values are kept)")
+	i.say("  - compose.yaml uses the saved Whisper model and language and the media root %s", media)
+	i.say("  - media folder: create %s and its sub-folders if missing (existing folders are left alone)", media)
+	i.say("  - settings: add any missing service fields to server/settings/config.json (existing values are kept)")
 	i.say("  - pull the latest container images (they track :latest, so this also brings the media image's newer yt-dlp)")
 	if st.Service {
 		i.say("  - restart %s and %s", serverUnit, workerUnit)
@@ -63,6 +73,9 @@ func (i *Installer) Upgrade() error {
 		return err
 	}
 	if _, err := i.ensureConfig(st, gid); err != nil {
+		return err
+	}
+	if err := i.ensureMediaFolders(st, gid); err != nil {
 		return err
 	}
 	if st.Service {

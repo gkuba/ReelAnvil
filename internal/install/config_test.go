@@ -43,8 +43,22 @@ func writeConfig(t *testing.T, in *Installer, body string) {
 
 func TestInstallerDefaultsMatchTheApp(t *testing.T) {
 	if defaultOllama != app.DefaultOllamaAddr || defaultWhisper != app.DefaultWhisperAddr || defaultEngine != app.EnginePodman ||
-		defaultFFmpeg != app.DefaultFFmpegPath || defaultYtDlp != app.DefaultYtDlpPath {
+		defaultFFmpeg != app.DefaultFFmpegPath || defaultYtDlp != app.DefaultYtDlpPath ||
+		defaultWhisperModel != app.DefaultWhisperModel || defaultWhisperLang != app.DefaultWhisperLang {
 		t.Error("installer service defaults differ from internal/app")
+	}
+	if strings.Join(mediaFolders, ",") != strings.Join(app.MediaFolderNames(), ",") {
+		t.Errorf("installer media folders %v differ from the app's %v", mediaFolders, app.MediaFolderNames())
+	}
+}
+
+func TestMediaRootRulesMatchTheApp(t *testing.T) {
+	for _, p := range []string{"/opt/ReelAnvil/media", "/srv/reel/media", "/mnt/media/a", "/home/alice/reel", "/var/lib/reel/m", "/tmp/a/b",
+		"", "media", "/", "/srv", "/usr/media/x", "/etc/reel/x", "/var/x", "/home/alice", "/tmp/x", "/var/lib/containers/m", "/srv/my media",
+		"/srv/a:b", "/srv/../etc/x", "/srv/x/", "/srv//x", "/proc/a/b", "/lib64/a/b", "/run/a/b", "/root/a/b"} {
+		if got, want := checkMediaRoot(p) == nil, app.CheckMediaRoot(p) == nil; got != want {
+			t.Errorf("%q: installer accepts=%v, app accepts=%v", p, got, want)
+		}
 	}
 }
 
@@ -56,8 +70,9 @@ func TestInstallWritesServiceConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := readConfig(t, in)
-	want := map[string]any{"version": float64(4), "ollama_address": "127.0.0.1:11434", "whisper_address": "127.0.0.1:10300",
-		"media_engine": "podman", "ffmpeg_path": "ffmpeg", "ytdlp_path": "yt-dlp"}
+	want := map[string]any{"version": float64(5), "ollama_address": "127.0.0.1:11434", "whisper_address": "127.0.0.1:10300",
+		"media_engine": "podman", "ffmpeg_path": "ffmpeg", "ytdlp_path": "yt-dlp",
+		"whisper_model": "tiny-int8", "whisper_language": "en", "media_root": filepath.Join(in.Root, "media")}
 	for k, v := range want {
 		if m[k] != v {
 			t.Errorf("%s = %v, want %v", k, m[k], v)
@@ -94,14 +109,16 @@ func TestInstallKeepsExistingConfigValuesAndFillsMissing(t *testing.T) {
 }
 
 func TestInstallLeavesCompleteAndUnreadableConfigsAlone(t *testing.T) {
-	complete := `{"version":4,"ollama_address":"a:1","whisper_address":"b:2","media_engine":"host","ffmpeg_path":"/x/ff","ytdlp_path":"/x/yt"}`
+	complete := `{"version":5,"ollama_address":"a:1","whisper_address":"b:2","media_engine":"host","ffmpeg_path":"/x/ff","ytdlp_path":"/x/yt","whisper_model":"base","whisper_language":"de","media_root":"@ROOT@/custom-media"}`
 	for name, body := range map[string]string{
 		"complete":       complete,
 		"future version": `{"version":9,"theme":"x"}`,
+		"version 6":      `{"version":6,"theme":"x"}`,
 		"not json":       `{oops`,
 		"no version":     `{"theme":"x"}`,
 	} {
 		in, _, _ := newTest(t)
+		body = strings.ReplaceAll(body, "@ROOT@", in.Root)
 		writeConfig(t, in, body)
 		if err := in.Install(); err != nil {
 			t.Fatalf("%s: install failed: %v", name, err)

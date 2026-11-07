@@ -1,7 +1,7 @@
 {{define "content"}}
 {{template "devbar" .}}
 <h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg> Transcription</h1>
-<p>Where ReelAnvil finds Whisper, the service that turns speech into text.</p>
+<p>Where ReelAnvil finds Whisper, the service that turns speech into text, and which model and language it should use.</p>
 {{template "flash" .}}
 <div class="card narrow-fields">
 <h2>Whisper</h2>
@@ -9,6 +9,20 @@
 <label for="whisper_address">Address</label>
 <input id="whisper_address" name="whisper_address" maxlength="261" required value="{{.Config.WhisperAddress}}" aria-describedby="whisper_help">
 <p id="whisper_help" class="muted">Host and port of the Wyoming service, for example <code>127.0.0.1:10300</code>. Test connection tries the address as typed, without saving it.</p>
+{{with .Whisper}}{{if not .Reachable}}
+<p class="status-line"><span class="status-warn">Not reachable</span>: {{.Err}}.</p>
+{{else if .InfoErr}}
+<p class="status-line"><span class="status-ok">Connected</span>, but the service sent no model list ({{.InfoErr}}).</p>
+{{else}}
+<p class="status-line"><span class="status-ok">Connected</span>. The service reports {{len .Models}} speech recognition model(s).</p>
+{{end}}{{end}}
+<label for="whisper_model">Model</label>
+<input id="whisper_model" name="whisper_model" maxlength="64" list="whisper_models" value="{{.Config.WhisperModel}}" aria-describedby="model_help">
+<datalist id="whisper_models">{{range .Whisper.Models}}<option value="{{.}}">{{end}}</datalist>
+<label for="whisper_language">Language</label>
+<input id="whisper_language" name="whisper_language" maxlength="64" value="{{.Config.WhisperLanguage}}" aria-describedby="model_help">
+<p id="model_help" class="muted">Letters, digits, dots, dashes and underscores, for example <code>tiny-int8</code> and <code>en</code>. Larger models are more accurate and slower. The suggestions come from the running service.</p>
+<div class="note">Model and language are applied to the Whisper container when you run <code>sudo reelanvil upgrade</code>. ReelAnvil's web server never controls containers, so saving here does not change the running service.</div>
 <div class="actions end">
 <button type="submit" class="secondary" formaction="/settings/transcription/test"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5m8-5v5M5 8h14v3a7 7 0 0 1-14 0V8zm7 10v4"/></svg>Test connection</button>
 <button type="submit"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v7h10V3M7 21v-8h10v8"/></svg>Save Settings</button>

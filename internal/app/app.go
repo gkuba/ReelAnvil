@@ -63,6 +63,16 @@ type Settings struct {
 	MediaEngine    string `json:"media_engine"`
 	FFmpegPath     string `json:"ffmpeg_path"`
 	YtDlpPath      string `json:"ytdlp_path"`
+	// Model roles (Settings > AI): installed Ollama model names, empty = unset.
+	HunterModel   string `json:"hunter_model"`
+	ReviewerModel string `json:"reviewer_model"`
+	// Whisper model and language; the container reads them on `reelanvil upgrade`.
+	WhisperModel    string `json:"whisper_model"`
+	WhisperLanguage string `json:"whisper_language"`
+	// MediaRoot holds incoming/, temp/, completed/, failed/ and archive/.
+	// StorageLimitGB caps the space ReelAnvil may use under it; 0 = no limit.
+	MediaRoot      string `json:"media_root"`
+	StorageLimitGB int    `json:"storage_limit_gb"`
 }
 type Server struct {
 	mu         sync.Mutex
@@ -82,14 +92,24 @@ type Server struct {
 	addrOverride, hostsOverride bool
 	restart                     chan struct{}
 	restartOnce                 sync.Once
+	// Model pull running against Ollama, and the context it runs under, which
+	// ends when the server shuts down.
+	pullMu     sync.Mutex
+	pull       pullState
+	pullCancel context.CancelFunc
+	bgOnce     sync.Once
+	bgCtx      context.Context
+	bgStop     context.CancelFunc
+	bgWG       sync.WaitGroup
 }
 
-const settingsVersion = 4
+const settingsVersion = 5
 const configPath = "settings/config.json"
 
 func defaults() Settings {
 	return Settings{Version: settingsVersion, InstanceName: "ReelAnvil", Theme: defaultTheme, IconVariant: defaultIcon, ListenAddress: DefaultAddr,
-		OllamaAddress: DefaultOllamaAddr, WhisperAddress: DefaultWhisperAddr, MediaEngine: EnginePodman, FFmpegPath: DefaultFFmpegPath, YtDlpPath: DefaultYtDlpPath}
+		OllamaAddress: DefaultOllamaAddr, WhisperAddress: DefaultWhisperAddr, MediaEngine: EnginePodman, FFmpegPath: DefaultFFmpegPath, YtDlpPath: DefaultYtDlpPath,
+		WhisperModel: DefaultWhisperModel, WhisperLanguage: DefaultWhisperLang}
 }
 
 // file returns name inside the server's data directory.
@@ -325,6 +345,12 @@ func Doctor(opts Options) error {
 	} else {
 		line("Listen address", addr+" (loopback)")
 	}
+	root := effectiveMediaRoot(cfg, dataDir)
+	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
+		line("Media root", root+" (missing or not a folder)")
+	} else {
+		line("Media root", root+" (present)")
+	}
 	line("Database schema", fmt.Sprintf("version %d expected by this build", store.SchemaVersion))
 	return nil
 }
@@ -345,10 +371,15 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/settings/network", s.saveNetwork)
 	mux.HandleFunc("/settings/ai", s.aiSettings)
 	mux.HandleFunc("/settings/ai/test", s.aiTest)
+	mux.HandleFunc("/settings/ai/model-test", s.aiModelTest)
+	mux.HandleFunc("/settings/ai/pull", s.aiPull)
+	mux.HandleFunc("/settings/ai/pull/cancel", s.aiPullCancel)
 	mux.HandleFunc("/settings/transcription", s.transcriptionSettings)
 	mux.HandleFunc("/settings/transcription/test", s.transcriptionTest)
 	mux.HandleFunc("/settings/media", s.mediaSettings)
 	mux.HandleFunc("/settings/media/test", s.mediaTest)
+	mux.HandleFunc("/settings/storage", s.storageSettings)
+	mux.HandleFunc("/settings/storage/check", s.storageCheck)
 	mux.HandleFunc("/system/restart", s.restartHandler)
 	mux.HandleFunc("/themes/refresh", s.refreshThemes)
 	mux.HandleFunc("/themes/duplicate", s.duplicateTheme)
@@ -438,6 +469,15 @@ func Serve(opts Options) error {
 	s := &Server{cfg: cfg, cfgPath: cfgPath, dataDir: dataDir, addr: addr, started: time.Now(), log: logger, themes: map[string]Theme{}, store: db,
 		hosts: newHostPolicy(exposed, hosts), runHosts: hosts, addrOverride: addrOverride, hostsOverride: hostsOverride, restart: make(chan struct{})}
 	s.reloadThemes()
+	if cfg.MediaRoot == "" {
+		// No saved media root: use <data-dir>/media and make sure it is ready.
+		root := effectiveMediaRoot(cfg, dataDir)
+		if err := os.MkdirAll(root, folderMode); err == nil {
+			_, err = ensureMediaFolders(root)
+		} else {
+			s.log.Printf("media root %s: %v", root, err)
+		}
+	}
 	if !validTheme(s.cfg.Theme) && s.themes[s.cfg.Theme].ID == "" {
 		s.cfg.Theme = defaultTheme
 	}
@@ -467,6 +507,7 @@ func Serve(opts Options) error {
 		server.Shutdown(shutdown)
 	}()
 	err = server.Serve(listener)
+	defer s.stopBackground()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

@@ -1,7 +1,8 @@
+{{define "head"}}{{if .Pull.Running}}<meta http-equiv="refresh" content="3">{{end}}{{end}}
 {{define "content"}}
 {{template "devbar" .}}
 <h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg> AI</h1>
-<p>Where ReelAnvil finds Ollama, the service that runs the language model.</p>
+<p>Where ReelAnvil finds Ollama, the service that runs the language models, and which installed model plays each role.</p>
 {{template "flash" .}}
 <div class="card narrow-fields">
 <h2>Ollama</h2>
@@ -9,11 +10,49 @@
 <label for="ollama_address">Address</label>
 <input id="ollama_address" name="ollama_address" maxlength="261" required value="{{.Config.OllamaAddress}}" aria-describedby="ollama_help">
 <p id="ollama_help" class="muted">Host and port, for example <code>127.0.0.1:11434</code>. Test connection tries the address as typed, without saving it.</p>
+{{if .Ollama.Reachable}}
+<p class="status-line"><span class="status-ok">Connected</span> to Ollama {{.Ollama.Version}}. {{if .Ollama.TagsErr}}The model list could not be read: {{.Ollama.TagsErr}}.{{else}}{{.ModelCount}} model(s) installed.{{end}}</p>
+{{else}}
+<p class="status-line"><span class="status-warn">Not reachable</span>: {{.Ollama.Err}}. Model choices below list only what is saved.</p>
+{{end}}
+<h3>Model roles</h3>
+<label for="hunter_model">Hunter model (finds clip candidates)</label>
+<select id="hunter_model" name="hunter_model" aria-describedby="roles_help">
+<option value=""{{if not .Config.HunterModel}} selected{{end}}>None</option>
+{{range .HunterOptions}}<option value="{{.Name}}"{{if .Selected}} selected{{end}}>{{.Name}}{{if .Missing}} (not installed){{end}}</option>
+{{end}}</select>
+<label for="reviewer_model">Reviewer model (checks candidates independently)</label>
+<select id="reviewer_model" name="reviewer_model">
+<option value=""{{if not .Config.ReviewerModel}} selected{{end}}>None</option>
+{{range .ReviewerOptions}}<option value="{{.Name}}"{{if .Selected}} selected{{end}}>{{.Name}}{{if .Missing}} (not installed){{end}}</option>
+{{end}}</select>
+<p id="roles_help" class="muted">Both roles can use the same model on a small host; they still run in separate contexts. Pull a model below to add more choices.</p>
 <div class="actions end">
 <button type="submit" class="secondary" formaction="/settings/ai/test"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5m8-5v5M5 8h14v3a7 7 0 0 1-14 0V8zm7 10v4"/></svg>Test connection</button>
+<button type="submit" class="secondary" formaction="/settings/ai/model-test" aria-describedby="modeltest_help"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg>Test hunter model</button>
 <button type="submit"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v7h10V3M7 21v-8h10v8"/></svg>Save Settings</button>
 </div>
+<p id="modeltest_help" class="muted">Test hunter model asks the selected model to reply to a short prompt and shows the answer and how long it took. The first run after a model is loaded can take a minute on a CPU.</p>
 </form>
+</div>
+<div class="card narrow-fields">
+<h2>Pull a model</h2>
+<form method="post" action="/settings/ai/pull">
+<label for="pull_model">Model name</label>
+<input id="pull_model" name="pull_model" maxlength="128" placeholder="qwen2.5:3b" autocomplete="off" aria-describedby="pull_help"{{if .Pull.Running}} disabled{{end}}>
+<p id="pull_help" class="muted">Downloads the model through Ollama, one at a time, in the background. Models can be several gigabytes.</p>
+<div class="actions end"><button type="submit"{{if .Pull.Running}} disabled{{end}}>Pull model</button></div>
+</form>
+{{with .Pull}}{{if .Active}}
+<h3>{{if .Running}}Pulling{{else if .Done}}Pulled{{else}}Pull ended for{{end}} {{.Model}}</h3>
+<dl class="facts">
+<dt>Status</dt><dd>{{if .Err}}<span class="status-warn">{{.Err}}</span>{{else if .Done}}<span class="status-ok">finished</span>{{else}}{{.Status}}{{end}}</dd>
+{{if .Bytes}}<dt>Downloaded</dt><dd>{{.Bytes}}{{if ge .Percent 0}} ({{.Percent}}% of the layers reported so far){{end}}</dd>{{end}}
+<dt>Elapsed</dt><dd>{{.Elapsed}}</dd>
+</dl>
+{{if .Running}}<form method="post" action="/settings/ai/pull/cancel"><div class="actions end"><button type="submit" class="secondary">Stop pull</button></div></form>
+<p class="muted">This page refreshes every few seconds while a pull runs. Sizes come straight from Ollama; no time estimate is shown.</p>{{end}}
+{{end}}{{end}}
 </div>
 <footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
 {{end}}

@@ -22,7 +22,7 @@ var webAssets embed.FS
 
 // pages maps a page name to its template set: the shared layout and sidebar
 // plus web/templates/<name>.html, which defines "content".
-var pages = parsePages("overview", "campaigns", "general", "themes", "connectors", "storage", "diagnostics", "placeholder", "restart", "ai", "transcription", "media-settings")
+var pages = parsePages("overview", "campaigns", "general", "themes", "connectors", "storage", "diagnostics", "placeholder", "restart", "ai", "transcription", "media-settings", "services")
 
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
@@ -133,14 +133,16 @@ func staticHandler() http.Handler {
 	})
 }
 
+type pageSpec struct{ page, title, nav string }
+
 // sections maps placeholder and settings URLs to their page and title.
 // nav overrides the sidebar section ID, which is otherwise the last path
 // element (that would make /settings/media light up the Media group).
-var sections = map[string]struct{ page, title, nav string }{
+var sections = map[string]pageSpec{
 	"/jobs":                   {"placeholder", "Jobs", ""},
 	"/media":                  {"placeholder", "Media", ""},
 	"/review":                 {"placeholder", "Review", ""},
-	"/services":               {"placeholder", "Services", ""},
+	"/services":               {"services", "Services", ""},
 	"/diagnostics":            {"diagnostics", "Diagnostics", ""},
 	"/settings":               {"general", "Settings", ""},
 	"/settings/themes":        {"themes", "Themes", ""},
@@ -183,6 +185,20 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	section := sec.nav
 	if section == "" {
 		section = r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+	}
+	switch sec.page {
+	case "storage":
+		s.storagePage(w, r, sec, section)
+		return
+	case "ai":
+		s.aiPage(w, r, sec, section)
+		return
+	case "transcription":
+		s.transcriptionPage(w, r, sec, section)
+		return
+	case "services":
+		s.servicesPage(w, r, sec, section)
+		return
 	}
 	data := settingsPageData{pageBase: s.base(w, r, sec.title, section)}
 	s.mu.Lock()

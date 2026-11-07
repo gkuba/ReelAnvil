@@ -100,7 +100,7 @@ func (i *Installer) checks(st *State) []check {
 	gid, uerr := i.lookupUser(st)
 	_ = gid
 	add("user "+User, uerr == nil, yesNo(uerr == nil, "uid "+strconv.Itoa(st.UID), "missing"), true)
-	for _, d := range []string{"", "server", "containers", "media"} {
+	for _, d := range []string{"", "server", "containers"} {
 		p := filepath.Join(st.Root, d)
 		_, err := os.Stat(p)
 		add("folder "+p, err == nil, yesNo(err == nil, "present", "missing"), true)
@@ -110,9 +110,14 @@ func (i *Installer) checks(st *State) []check {
 		_, err := os.Stat(p)
 		add(f, err == nil, yesNo(err == nil, "present", "missing"), true)
 	}
-	if c := fileHash(filepath.Join(st.Root, "containers", "compose.yaml")); c != "" && c != hashBytes(i.renderCompose(*st)) {
-		add("compose.yaml", true, "differs from the bundled file (edited or older); `reelanvil upgrade` replaces it", false)
+	want, cerr := i.renderCompose(*st)
+	switch c := fileHash(filepath.Join(st.Root, "containers", "compose.yaml")); {
+	case cerr != nil:
+		add("compose.yaml settings", false, cerr.Error(), false)
+	case c != "" && c != hashBytes(want):
+		add("compose.yaml", true, "differs from what the settings produce (edited, older, or Whisper/media settings changed); `sudo reelanvil upgrade` replaces it", false)
 	}
+	i.mediaChecks(st, uerr == nil, add)
 	add("install marker", hasMarker(st.Root), yesNo(hasMarker(st.Root), "present", "missing ("+markerFile+")"), true)
 	_, err := os.Stat(i.RuntimeDir(st.UID))
 	add("linger / runtime dir", err == nil, yesNo(err == nil, i.RuntimeDir(st.UID), i.RuntimeDir(st.UID)+" missing"), true)
@@ -151,6 +156,36 @@ func (i *Installer) checks(st *State) []check {
 		add("web app", herr == nil && code == 200, yesNo(herr == nil && code == 200, "HTTP 200", "not answering on port "+strconv.Itoa(st.Port)), true)
 	}
 	return out
+}
+
+// mediaChecks reports on the media root from the settings file: it exists, is
+// a folder, and the service user can write to it. The write check runs as that
+// user, so it needs root.
+func (i *Installer) mediaChecks(st *State, userOK bool, add func(name string, ok bool, detail string, repair bool)) {
+	root, err := i.mediaRoot(*st)
+	if err != nil {
+		add("media_root", false, err.Error(), false)
+		return
+	}
+	name := "folder " + root + " (media root)"
+	fi, err := os.Stat(root)
+	switch {
+	case err != nil:
+		add(name, false, "missing", true)
+		return
+	case !fi.IsDir():
+		add(name, false, "not a folder", false)
+		return
+	}
+	if !i.IsRoot || !userOK {
+		add(name, true, "present (run with sudo to test that "+User+" can write to it)", false)
+		return
+	}
+	if _, err := i.Run.Run(i.asUser(*st, "/", "test", "-d", root, "-a", "-w", root, "-a", "-x", root)); err != nil {
+		add(name, false, User+" cannot write to it; fix with: sudo chown "+User+":"+User+" "+root, false)
+		return
+	}
+	add(name, true, "present and writable by "+User, false)
 }
 
 // repair fixes what it can. Problems that do not stop it (a unit that would
