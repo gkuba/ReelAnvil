@@ -20,7 +20,8 @@ import (
 
 func TestSettingsRoundTrip(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	original := Settings{Version: 3, InstanceName: "Test", Theme: "aurora", IconVariant: "molten-orange", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "molten-orange", "custom": "amethyst"}, ListenAddress: "192.0.2.10:9000", AllowedHosts: []string{"reelanvil.lan"}}
+	original := Settings{Version: 4, InstanceName: "Test", Theme: "aurora", IconVariant: "molten-orange", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "molten-orange", "custom": "amethyst"}, ListenAddress: "192.0.2.10:9000", AllowedHosts: []string{"reelanvil.lan"},
+		OllamaAddress: "192.0.2.20:11434", WhisperAddress: "whisper.lan:10300", MediaEngine: "host", FFmpegPath: "/usr/bin/ffmpeg", YtDlpPath: "yt-dlp"}
 	if err := save(p, original); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +43,7 @@ func TestSettingsVersionOneMigratesToGlobalIconDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Version != 3 || c.InstanceName != "Kept" || c.Theme != "aurora" || c.IconVariant != "blue-violet" {
+	if c.Version != 4 || c.InstanceName != "Kept" || c.Theme != "aurora" || c.IconVariant != "blue-violet" {
 		t.Fatalf("unexpected migrated settings: %+v", c)
 	}
 }
@@ -57,7 +58,7 @@ func TestSettingsVersionTwoPreservesActiveThemeIconAndAllLegacyPreferences(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Version != 3 || c.Theme != "dracula-dark" || c.IconVariant != "amethyst" {
+	if c.Version != 4 || c.Theme != "dracula-dark" || c.IconVariant != "amethyst" {
 		t.Fatalf("active theme appearance changed on upgrade: %+v", c)
 	}
 	if c.ThemeIcons["aurora"] != "molten-orange" || c.ThemeIcons["custom-copy"] != "amethyst" {
@@ -85,7 +86,7 @@ func TestFreshSettingsDefaultToDraculaAndBlueViolet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Version != 3 || c.Theme != "dracula-dark" || c.IconVariant != "blue-violet" {
+	if c.Version != 4 || c.Theme != "dracula-dark" || c.IconVariant != "blue-violet" {
 		t.Fatalf("unexpected fresh defaults: %+v", c)
 	}
 }
@@ -187,7 +188,7 @@ func TestGlobalIconSettingSharesThemeSaveAndServesFavicon(t *testing.T) {
 func TestSharedSidebarHierarchyAcrossApplicationPages(t *testing.T) {
 	s := securityTestServer(t)
 	h := s.handler()
-	paths := []string{"/", "/campaigns", "/jobs", "/media", "/review", "/diagnostics", "/settings", "/settings/themes", "/settings/connectors", "/settings/storage", "/services"}
+	paths := []string{"/", "/campaigns", "/jobs", "/media", "/review", "/diagnostics", "/settings", "/settings/themes", "/settings/ai", "/settings/transcription", "/settings/media", "/settings/connectors", "/settings/storage", "/services"}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, path, nil)
@@ -198,7 +199,7 @@ func TestSharedSidebarHierarchyAcrossApplicationPages(t *testing.T) {
 			if w.Code != http.StatusOK || !strings.Contains(body, `id="app-sidebar"`) {
 				t.Fatalf("shared sidebar missing on %s: %d", path, w.Code)
 			}
-			for _, href := range []string{`href="/"`, `href="/campaigns"`, `href="/jobs"`, `href="/media"`, `href="/review"`, `href="/diagnostics"`, `href="/settings"`, `href="/settings/themes"`, `href="/settings/connectors"`, `href="/settings/storage"`, `href="/services"`} {
+			for _, href := range []string{`href="/"`, `href="/campaigns"`, `href="/jobs"`, `href="/media"`, `href="/review"`, `href="/diagnostics"`, `href="/settings"`, `href="/settings/themes"`, `href="/settings/ai"`, `href="/settings/transcription"`, `href="/settings/media"`, `href="/settings/connectors"`, `href="/settings/storage"`, `href="/services"`} {
 				if !strings.Contains(body, href) {
 					t.Errorf("%s missing from sidebar navigation: %s", path, href)
 				}
@@ -206,7 +207,7 @@ func TestSharedSidebarHierarchyAcrossApplicationPages(t *testing.T) {
 			if strings.Contains(body, "Automation") || strings.Contains(body, "data-group=\"workflow\"") {
 				t.Errorf("legacy Automation group remains on %s", path)
 			}
-			for _, iconName := range []string{"Overview", "Campaigns", "Jobs", "Media", "Media Library", "Review", "Diagnostics", "Settings", "General", "Themes", "Connectors", "Paths &amp; Storage", "Services"} {
+			for _, iconName := range []string{"Overview", "Campaigns", "Jobs", "Media", "Media Library", "Review", "Diagnostics", "Settings", "General", "Themes", "AI", "Transcription", "Connectors", "Paths &amp; Storage", "Services"} {
 				if !strings.Contains(body, iconName) {
 					t.Errorf("%s missing navigation item %q", path, iconName)
 				}
@@ -329,6 +330,12 @@ func TestLocalRequestRejectsForeignHostAndOrigin(t *testing.T) {
 			}
 			if w.Header().Get("X-Content-Type-Options") != "nosniff" || w.Header().Get("X-Frame-Options") != "DENY" || !strings.Contains(w.Header().Get("Content-Security-Policy"), "img-src 'self'") {
 				t.Fatal("security headers missing")
+			}
+			// no-referrer makes browsers send Origin: null on form posts, and
+			// plain-HTTP LAN origins get no Sec-Fetch-Site to vouch for it, so
+			// every save from another machine was rejected.
+			if got := w.Header().Get("Referrer-Policy"); got != "same-origin" {
+				t.Fatalf("Referrer-Policy = %q, want same-origin", got)
 			}
 		})
 	}
@@ -454,7 +461,7 @@ func TestDefaults(t *testing.T) {
 }
 func TestUnsupportedVersion(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(p, []byte(`{"version":4}`), 0600); err != nil {
+	if err := os.WriteFile(p, []byte(`{"version":5}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := load(p); err == nil {

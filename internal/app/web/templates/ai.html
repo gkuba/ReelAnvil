@@ -1,0 +1,19 @@
+{{define "content"}}
+{{template "devbar" .}}
+<h1><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg> AI</h1>
+<p>Where ReelAnvil finds Ollama, the service that runs the language model.</p>
+{{template "flash" .}}
+<div class="card narrow-fields">
+<h2>Ollama</h2>
+<form method="post" action="/settings/ai">
+<label for="ollama_address">Address</label>
+<input id="ollama_address" name="ollama_address" maxlength="261" required value="{{.Config.OllamaAddress}}" aria-describedby="ollama_help">
+<p id="ollama_help" class="muted">Host and port, for example <code>127.0.0.1:11434</code>. Test connection tries the address as typed, without saving it.</p>
+<div class="actions end">
+<button type="submit" class="secondary" formaction="/settings/ai/test"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5m8-5v5M5 8h14v3a7 7 0 0 1-14 0V8zm7 10v4"/></svg>Test connection</button>
+<button type="submit"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v7h10V3M7 21v-8h10v8"/></svg>Save Settings</button>
+</div>
+</form>
+</div>
+<footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
+{{end}}

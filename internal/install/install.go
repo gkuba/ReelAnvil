@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -198,6 +199,9 @@ type Installer struct {
 	Chown  func(path string, uid, gid int) error
 	Sleep  func(time.Duration)
 	Get    func(url string) (status int, body []byte, err error)
+	// Dial opens the TCP connection the doctor uses to test a service
+	// address; nil means net.DialTimeout.
+	Dial func(network, addr string, timeout time.Duration) (net.Conn, error)
 }
 
 // New returns an Installer wired to the real host.
@@ -650,6 +654,7 @@ func (i *Installer) Install() error {
 	}
 	i.say("  - system user %s (rootless Podman, linger)", User)
 	i.say("  - %s with server/, containers/, media/; the binary and the bundled compose.yaml", st.Root)
+	i.say("  - server/settings/config.json: the addresses of the container services (existing values are kept)")
 	if st.Service {
 		i.say("  - systemd units %s and %s, enabled and started on port %d", serverUnit, workerUnit, st.Port)
 	} else {
@@ -700,6 +705,9 @@ func (i *Installer) Install() error {
 		return err
 	}
 	if _, err := i.ensureCompose(st, gid, true); err != nil {
+		return err
+	}
+	if _, err := i.ensureConfig(st, gid); err != nil {
 		return err
 	}
 	if st.Service {

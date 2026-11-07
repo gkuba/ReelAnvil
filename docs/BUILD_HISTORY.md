@@ -2,6 +2,14 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-11-06 — Build 0.9.2: service settings pages and installer pre-fill (uncommitted)
+
+- **Changes:** settings version 4 with `ollama_address`, `whisper_address`, `media_engine`, `ffmpeg_path`, `ytdlp_path` (older files migrate by filling defaults; unknown future versions are still refused). New Settings → AI, Transcription and Media pages with save forms and Test connection buttons (Ollama `/api/version` + `/api/tags`; Whisper TCP dial then Wyoming `describe`; host programs via `exec.LookPath`, never run; no container socket access). `install` and `upgrade` write or complete `server/settings/config.json`; `doctor` checks the two service addresses accept a TCP connection (FAIL line, no repair). In `internal/app/services.go`, templates `ai.html`, `transcription.html`, `media-settings.html`, `internal/install/config.go`.
+- **Verified:** `gofmt`, `go vet`, `go test -race`, `go mod verify` and `scripts/build-dev.sh` pass. Tests use httptest servers for Ollama and a `net.Listen` stub for Wyoming, plus migration, validation, cross-origin, sidebar-highlight and installer/doctor cases. A scratch `serve --data-dir` run returned 200 for the three pages and wrote the version 4 file.
+- **Fix:** form posts from LAN clients over plain HTTP were rejected ("cross-origin request rejected"): `Referrer-Policy: no-referrer` makes browsers send `Origin: null`, and non-secure origins send no `Sec-Fetch-Site` to vouch for it. Now `Referrer-Policy: same-origin`, with a regression test.
+- **Verified later:** pages at desktop and 375px on a scratch copy (no sideways scroll); `upgrade` and `doctor` on the Debian 13 host (all ok); both Test connection actions reach the real Ollama and Whisper containers.
+- **Not verified:** the maintainer's visual review.
+
 ## 2026-11-06 — Build 0.9.2: Go installer (pushed to `dev`)
 
 - **Changes:** `install [--service]`, `upgrade [--dry-run]`, `doctor [--repair [--clean]]` and `uninstall` with `--yes`, `--dir` (default `/opt/ReelAnvil`) and `--port` (default 4747); `serve` now defaults to `0.0.0.0:4747` too, so the Settings page shows the real port. In `internal/install/` and `cmd/reelanvil/install.go`, following the manual install runbook proven on the Debian 13 reference host.

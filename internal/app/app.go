@@ -56,6 +56,13 @@ type Settings struct {
 	// ListenAddress and AllowedHosts take effect on the next start or restart.
 	ListenAddress string   `json:"listen_address"`
 	AllowedHosts  []string `json:"allowed_hosts,omitempty"`
+	// Container services (Settings > AI, Transcription, Media). Addresses are
+	// host:port; the paths are used only with the "host" media engine.
+	OllamaAddress  string `json:"ollama_address"`
+	WhisperAddress string `json:"whisper_address"`
+	MediaEngine    string `json:"media_engine"`
+	FFmpegPath     string `json:"ffmpeg_path"`
+	YtDlpPath      string `json:"ytdlp_path"`
 }
 type Server struct {
 	mu         sync.Mutex
@@ -77,11 +84,12 @@ type Server struct {
 	restartOnce                 sync.Once
 }
 
-const settingsVersion = 3
+const settingsVersion = 4
 const configPath = "settings/config.json"
 
 func defaults() Settings {
-	return Settings{Version: settingsVersion, InstanceName: "ReelAnvil", Theme: defaultTheme, IconVariant: defaultIcon, ListenAddress: DefaultAddr}
+	return Settings{Version: settingsVersion, InstanceName: "ReelAnvil", Theme: defaultTheme, IconVariant: defaultIcon, ListenAddress: DefaultAddr,
+		OllamaAddress: DefaultOllamaAddr, WhisperAddress: DefaultWhisperAddr, MediaEngine: EnginePodman, FFmpegPath: DefaultFFmpegPath, YtDlpPath: DefaultYtDlpPath}
 }
 
 // file returns name inside the server's data directory.
@@ -131,6 +139,12 @@ func load(path string) (Settings, error) {
 	}
 	if c.AllowedHosts, err = parseAllowedHosts(strings.Join(c.AllowedHosts, ",")); err != nil {
 		return c, fmt.Errorf("invalid allowed_hosts: %w", err)
+	}
+	if c.InstanceName == "" {
+		c.InstanceName = defaults().InstanceName
+	}
+	if err := c.fillServices(); err != nil {
+		return c, err
 	}
 	c.Version = settingsVersion
 	// Theme selection is validated after custom themes load in Serve.
@@ -210,7 +224,7 @@ func localRequest(next http.Handler, hosts hostPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("Content-Security-Policy", contentSecurityPolicy)
 		host, _, err := net.SplitHostPort(r.Host)
 		if err != nil {
@@ -329,6 +343,12 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/favicon.ico", s.favicon)
 	mux.HandleFunc("/settings", s.settings)
 	mux.HandleFunc("/settings/network", s.saveNetwork)
+	mux.HandleFunc("/settings/ai", s.aiSettings)
+	mux.HandleFunc("/settings/ai/test", s.aiTest)
+	mux.HandleFunc("/settings/transcription", s.transcriptionSettings)
+	mux.HandleFunc("/settings/transcription/test", s.transcriptionTest)
+	mux.HandleFunc("/settings/media", s.mediaSettings)
+	mux.HandleFunc("/settings/media/test", s.mediaTest)
 	mux.HandleFunc("/system/restart", s.restartHandler)
 	mux.HandleFunc("/themes/refresh", s.refreshThemes)
 	mux.HandleFunc("/themes/duplicate", s.duplicateTheme)

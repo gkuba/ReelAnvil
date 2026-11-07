@@ -134,6 +134,18 @@ func (i *Installer) checks(st *State) []check {
 		n := len(strings.Fields(out2))
 		add("containers running", err == nil && n >= 3, fmt.Sprintf("%d of 3", n), true)
 	}
+	if ollama, whisper, cerr := i.serviceAddresses(*st); cerr != nil {
+		add("service addresses", false, cerr.Error(), false)
+	} else {
+		for _, svc := range []struct{ name, addr string }{{"Ollama", ollama}, {"Whisper", whisper}} {
+			detail := "accepts connections"
+			err := i.canConnect(svc.addr)
+			if err != nil {
+				detail = "not reachable: " + err.Error()
+			}
+			add(svc.name+" "+svc.addr, err == nil, detail, false)
+		}
+	}
 	if st.Service {
 		code, _, herr := i.Get(fmt.Sprintf("http://127.0.0.1:%d/", st.Port))
 		add("web app", herr == nil && code == 200, yesNo(herr == nil && code == 200, "HTTP 200", "not answering on port "+strconv.Itoa(st.Port)), true)

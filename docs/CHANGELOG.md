@@ -7,6 +7,7 @@ User-visible changes. Build and test records live in [`BUILD_HISTORY.md`](BUILD_
 ### Build 0.9.2 (development)
 - The web UI is served from embedded templates, one stylesheet and one script. Settings pages now match the Campaigns pages' headings, forms, cards and sidebar.
 - Stricter Content Security Policy: no inline scripts or styles.
+- Saving settings and Test connection now work from other machines on the LAN. The server sends `Referrer-Policy: same-origin` instead of `no-referrer`, which made browsers send `Origin: null` and the server reject the form.
 - Status messages after saving are one-time messages and can no longer be set through a link.
 - Duplicating a theme keeps its real colours and a valid name (for example "Dracula (Copy)").
 - Manual campaigns store View, Apply/Join and Submit links correctly; existing affected records are repaired automatically. Deadlines are stored as calendar dates.
@@ -14,6 +15,9 @@ User-visible changes. Build and test records live in [`BUILD_HISTORY.md`](BUILD_
 - `reelanvil serve --data-dir <dir> --addr <host:port>`, `reelanvil version`, and a more useful `reelanvil doctor`.
 - ReelAnvil now listens on `0.0.0.0:4747` by default so it can be reached from your local network. **Settings → General → Network** sets the bind address, port and extra allowed host names; a **Restart ReelAnvil** button (and a banner on every page while a change is pending) applies them and reconnects the browser. `--addr` and `--allowed-hosts` override the saved values for one run. A startup warning and the DNS-rebinding defense remain. There is still no authentication: trusted LANs only, never the public internet.
 - New `reelanvil install [--service]`, `upgrade [--dry-run]`, `doctor --repair [--clean]` and `uninstall` for Debian 13. Install creates a `reelanvil` system user and `/opt/ReelAnvil`, sets up rootless Podman with the Ollama, Whisper and media containers on loopback only, and (with `--service`) systemd units that serve the web app on port 4747. `uninstall` removes what install set up, Podman included; your settings and media are deleted only with `--delete-data`. The default port is now 4747. `doctor` also reports the media container's yt-dlp version against the latest release.
+
+- New **Settings → AI**, **Transcription** and **Media** pages. They hold the Ollama address (default `127.0.0.1:11434`), the Whisper address (default `127.0.0.1:10300`) and the media engine (Podman, Docker or host programs, with FFmpeg and yt-dlp paths for host programs). Each has a **Test connection** button that tries the values as typed without saving them: Ollama shows its version and installed models, Whisper shows the speech recognition models it reports, and host programs are looked up (not run). Podman and Docker have nothing to test from the web app, because the worker owns the containers. Settings files from earlier builds gain these fields with the defaults.
+- `install` and `upgrade` fill these fields in `server/settings/config.json` (existing values are kept). `doctor` now checks that the saved Ollama and Whisper addresses accept connections.
 
 ### Builds 0.1–0.9.1 (development)
 - Local web interface with Overview, Campaigns, Settings (General, Themes, Connectors, Paths & Storage), Diagnostics and placeholder pages.

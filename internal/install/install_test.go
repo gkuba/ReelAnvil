@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,6 +102,10 @@ func newTest(t *testing.T) (*Installer, *fakeRun, string) {
 		},
 		Sleep: func(time.Duration) {},
 		Get:   func(string) (int, []byte, error) { return 200, []byte(`{"tag_name":"2026.11.01"}`), nil },
+		Dial: func(string, string, time.Duration) (net.Conn, error) {
+			c, _ := net.Pipe()
+			return c, nil
+		},
 	}
 	os.MkdirAll(in.UnitDir, 0o755)
 	f.env = in

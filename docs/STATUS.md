@@ -9,14 +9,14 @@
 
 - Go web server (`reelanvil serve`), listening on `0.0.0.0:4747` by default for trusted LANs; bind address, port and allowed host names are editable in Settings → General → Network, applied with a Restart ReelAnvil button, with Host checks, same-origin POST checks, a 1 MiB body cap, timeouts, and a CSP without `unsafe-inline`. No authentication.
 - Embedded web UI: one shared layout and sidebar (expanded or compact rail with flyouts), responsive down to phone width.
-- Settings: instance name; five built-in themes (Aurora, Dracula, Tomorrow Night, Nocturne, Foundry); custom themes stored in `settings/themes.json` with a last-known-good backup; a global application icon.
+- Settings: instance name; AI (Ollama address), Transcription (Whisper address) and Media (engine, host program paths) pages with Test connection buttons, pre-filled by `install`/`upgrade`; five built-in themes (Aurora, Dracula, Tomorrow Night, Nocturne, Foundry); custom themes stored in `settings/themes.json` with a last-known-good backup; a global application icon.
 - SQLite (schema v3): manual campaign records with HTTPS-only links, local tracking status and notes, filters and sorting, and an Overview summary. Campaign discovery is deliberately disabled.
 - CLI: `serve`, `doctor`, `version`, and the Debian 13 system installer `install [--service]`, `upgrade`, `doctor --repair [--clean]`, `uninstall` (user `reelanvil`, `/opt/ReelAnvil`, rootless Podman, port 4747; passed 5 clean install/uninstall loops on the reference host); `--data-dir`, `--addr` and `--allowed-hosts` flags (per-run overrides of the saved network settings).
 - Tests cover security guards, migrations, settings and theme recovery, campaign validation, rendering and CSP compliance. CI runs on GitHub Actions.
 
 ## Placeholders (UI only, no function)
 
-Jobs, Media Library, Review, Services, Connectors and the Paths & Storage fields. No media is imported or processed; no AI or worker integration exists yet (the installer starts the containers, but nothing uses them).
+Jobs, Media Library, Review, Services, Connectors and the Paths & Storage fields. No media is imported or processed; nothing uses the saved Ollama, Whisper or media settings yet beyond their connection tests (the installer starts the containers).
 
 ## Next
 
