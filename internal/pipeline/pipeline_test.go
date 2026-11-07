@@ -52,6 +52,32 @@ func TestParseHuntValidatesRangesLengthsAndOverlap(t *testing.T) {
 	}
 }
 
+// Regression: a clip ended on a line cut at a pause mid-sentence
+// ("...humble and awestruck at what..."). Clips grow to finish the sentence,
+// past the job's maximum up to FinishCapS, and are never cut shorter.
+func TestFinishSentenceOnlyExtends(t *testing.T) {
+	s := segs(20, 10000)
+	s[3].Text, s[4].Text = "a full sentence.", "humble and awestruck at what..."
+	s[7].Text = "we built up there."
+	// 50 s clip, max 55: grows to line 7 (80 s), not back to line 3.
+	if got := finishSentence(s, 0, 4, 19, 55); got != 7 {
+		t.Fatalf("got %d, want 7", got)
+	}
+	// Already ends a sentence: unchanged.
+	if got := finishSentence(s, 0, 3, 19, 55); got != 3 {
+		t.Fatalf("got %d, want 3", got)
+	}
+	// The sentence ends at 130 s, past the 120 s cap: keep the end as chosen.
+	s[7].Text, s[12].Text = "and then", "finally."
+	if got := finishSentence(s, 0, 4, 19, 55); got != 4 {
+		t.Fatalf("past cap = %d, want 4", got)
+	}
+	// A job maximum above the cap is the limit instead.
+	if got := finishSentence(s, 0, 4, 19, 180); got != 12 {
+		t.Fatalf("job max = %d, want 12", got)
+	}
+}
+
 func TestBestKeepsStrongestWithoutOverlap(t *testing.T) {
 	got := Best([]Pick{{Start: 0, End: 2, Strength: 3}, {Start: 1, End: 3, Strength: 9}, {Start: 5, End: 6, Strength: 4}, {Start: 8, End: 9, Strength: 1}}, 2)
 	if len(got) != 2 || got[0].Start != 1 || got[1].Start != 5 {

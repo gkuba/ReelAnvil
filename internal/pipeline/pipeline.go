@@ -128,7 +128,7 @@ func HunterPrompt(b Brief, segs []Segment, from, to, want, minS, maxS int) strin
 	fmt.Fprintf(&sb, `You pick short vertical video clips from a transcript.
 %s
 
-Find up to %d moments that work on their own: a strong opening line (hook), a clear point, and an ending that pays it off. Each clip must be %d to %d seconds long. Clips must not overlap.
+Find up to %d moments that work on their own: a strong opening line (hook), a clear point, and an ending that pays it off. Each clip must be %d to %d seconds long. Clips must not overlap. End a clip only where the speakers have finished the whole answer or exchange, never while someone is still talking.
 %s
 
 Transcript lines are numbered: [number] start-end text.
@@ -199,6 +199,8 @@ func ParseHunt(raw string, segs []Segment, from, to, minS, maxS int) ([]Pick, []
 			problems = append(problems, fmt.Sprintf("Clip %d: lines %d-%d last %d seconds, not %d-%d.", i+1, start, end, length, minS, maxS))
 			continue
 		}
+		p.End = finishSentence(segs, p.Start, p.End, to, maxS)
+		sp = p.Span(segs)
 		overlap := false
 		for _, q := range picks {
 			if p.Start <= q.End && q.Start <= p.End {
@@ -232,6 +234,33 @@ func fitEnd(segs []Segment, start, end, to, minS, maxS int) int {
 		end--
 	}
 	return end
+}
+
+// FinishCapS is how long a clip may grow to finish what is being said, when
+// the job's own maximum is shorter.
+const FinishCapS = 120
+
+// finishSentence moves the end forward, within the window, to the first line
+// that finishes a sentence. Lines are cut at pauses, not sentences, and a
+// clip must not stop while someone is still talking, so this may run past
+// maxS up to FinishCapS; it never cuts a clip shorter.
+func finishSentence(segs []Segment, start, end, to, maxS int) int {
+	limit := int64(max(maxS, FinishCapS)) * 1000
+	for e := end; e <= to && segs[e].EndMS-segs[start].StartMS <= limit; e++ {
+		if endsSentence(segs[e].Text) {
+			return e
+		}
+	}
+	return end
+}
+
+// endsSentence reports whether a transcript line finishes a sentence.
+func endsSentence(s string) bool {
+	s = strings.TrimRight(strings.TrimSpace(s), `"')”’`)
+	if strings.HasSuffix(s, "...") || strings.HasSuffix(s, "…") {
+		return false
+	}
+	return strings.HasSuffix(s, ".") || strings.HasSuffix(s, "!") || strings.HasSuffix(s, "?")
 }
 
 // toInt reads a whole number the model may have sent as a number or string.
@@ -306,7 +335,7 @@ func ReviewPrompt(b Brief, segs []Segment, start, end int) string {
 	return fmt.Sprintf(`You review a short vertical video clip cut from a longer video, before a person sees it.
 %s
 
-Accept the clip only if it makes sense on its own without the surrounding video, starts with something that holds attention, ends at a natural point, and fits the campaign requirements. Reject it otherwise.
+Accept the clip only if it makes sense on its own without the surrounding video, starts with something that holds attention, ends at a natural point, and fits the campaign requirements. Reject it if it stops before the speaker has finished what they were saying. Reject it otherwise.
 %s
 
 Before the clip: %s

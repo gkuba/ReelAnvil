@@ -2,6 +2,12 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-11-06 — Build 0.9.2: clips run until the speaker finishes (not committed)
+
+- **Changes:** transcript lines are cut at pauses, not sentences, so a clip could stop mid-sentence (job 2's 6:05–6:55 clip ended on "…awestruck at what…"). After the length fit, `finishSentence` moves the end forward to the first line ending in `.`, `!` or `?` (a trailing ellipsis doesn't count), past the job maximum up to `FinishCapS` (120 s) or the job maximum if larger; it never moves the end back. The hunter prompt says to end only when the speakers have finished the answer or exchange; the reviewer rejects clips that stop before the speaker is done. The job maximum stays a target, not a hard stop (maintainer: YouTube allows more than 90 s, most clips under 2 min).
+- **Verified:** `gofmt -l .` empty, `go vet ./...`, `go test -race ./...`, `scripts/build-dev.sh` pass; new test covers extending past the maximum, an already finished line, the 120 s cap and a larger job maximum.
+- **Not verified:** a re-run on the Debian 13 host; the maintainer's review of the clips.
+
 ## 2026-11-06 — Build 0.9.2: media pipeline, worker, Review and campaign posts (not committed)
 
 - **Changes:** schema v4 (jobs, steps, log, sources, transcripts, candidates, reviews, clips, submissions, worker ops). `internal/pipeline` (segmenting at pauses, hunter and reviewer prompts and parsing, caption timing; the hunter keeps a proposal's opening line and fits its end to the length limits), `internal/worker` (download / probe / audio / render only, path and URL checks, Podman/Docker `exec` or host programs), `reelanvil worker` with a loopback Bearer-token API (`settings/worker.token`, 0600), job runner in the server (`internal/app/jobs.go`: steps, retry from the first unfinished step, cancel, storage-limit block). Pages: Media (new job from `incoming/` or HTTPS link, rights confirmation, campaign), Jobs (steps, real counts, elapsed, log, candidates, clips, Cancel/Retry), Review (player, downloads, approve/reject, record and update posts); Campaigns rows show jobs/clips/approved/posts/views/earnings with a New clip job link. The worker systemd unit now runs `reelanvil worker` after `compose up -d`. Placeholder template removed.
