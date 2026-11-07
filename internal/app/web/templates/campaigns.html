@@ -78,6 +78,8 @@
 </tr>
 </thead>
 <tbody>{{range .Campaigns}}<tr><td><strong>{{.Title}}</strong><span class="muted">{{if .Requirements}}{{.Requirements}}{{else}}No requirements recorded{{end}}</span>{{if .Notes}}<p><small>Your notes: {{.Notes}}</small></p>
+{{end}}{{if .Tracked}}{{with index $.Work .ID}}<p><small>{{.Jobs}} job(s) · {{.Clips}} clip(s) · {{.Approved}} approved · {{.Posts}} post(s){{if .Views}} · {{.Views}} views{{end}}{{if .EarningsCents}} · {{cents .EarningsCents}}{{end}}</small></p>
+{{end}}<a class="btn secondary small" href="/media?campaign={{.ID}}">New clip job</a>
 {{end}}<details><summary>Source details</summary>
 <p>Provenance: {{.Provenance}}</p>
 <p>Source status: {{if .PlatformStatus}}{{.PlatformStatus}}{{else}}Unknown{{end}}</p>

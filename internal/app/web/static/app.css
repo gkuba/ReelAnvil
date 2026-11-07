@@ -203,3 +203,16 @@ p.service-status{margin:0 0 10px}
 .actions-list li{margin:6px 0}
 @media (max-width:600px){.facts{grid-template-columns:minmax(0,1fr)}.facts dd{margin-bottom:6px}}
 a.link{color:var(--accent)}
+/* Media pipeline pages */
+.check{display:flex;gap:10px;align-items:flex-start;color:var(--text);font-size:14px}
+.check input{width:auto;margin-top:3px}
+progress{width:100%;height:8px;accent-color:var(--accent)}
+.steps{list-style:none;margin:0;padding:0}
+.steps li{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.steps li:last-child{border-bottom:0}
+.log{max-height:360px;overflow:auto;margin:0;padding:12px;background:var(--input);border:1px solid var(--line);border-radius:8px;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.clip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;min-width:0}
+.clip-grid .card{margin-top:0;min-width:0}
+.clip-video{display:block;width:100%;aspect-ratio:9/16;background:var(--input);border-radius:10px}
+.wrap{overflow-wrap:anywhere}
+@media (max-width:700px){.steps li{grid-template-columns:90px 1fr}.steps li>:last-child{grid-column:1/-1}}

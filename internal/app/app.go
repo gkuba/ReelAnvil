@@ -101,6 +101,9 @@ type Server struct {
 	bgCtx      context.Context
 	bgStop     context.CancelFunc
 	bgWG       sync.WaitGroup
+	// jobs is the media job being run (guarded by pullMu).
+	jobs        jobRunner
+	workerToken string
 }
 
 const settingsVersion = 5
@@ -238,7 +241,7 @@ const exposedWarning = "WARNING: listening beyond loopback with no authenticatio
 
 // contentSecurityPolicy allows only same-origin scripts, styles and images.
 // Pages must not use inline <script>, <style> or style="" attributes.
-const contentSecurityPolicy = "default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+const contentSecurityPolicy = "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 
 func localRequest(next http.Handler, hosts hostPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -363,6 +366,16 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/campaigns/untrack", s.untrackCampaign)
 	mux.HandleFunc("/campaigns/status", s.setCampaignStatus)
 	mux.HandleFunc("/campaigns/update", s.updateCampaign)
+	mux.HandleFunc("/media", s.mediaPage)
+	mux.HandleFunc("/media/jobs", s.createJob)
+	mux.HandleFunc("/media/clip/", s.clipFile)
+	mux.HandleFunc("/jobs", s.jobsPage)
+	mux.HandleFunc("/jobs/cancel", s.jobAction(s.cancelJob))
+	mux.HandleFunc("/jobs/retry", s.jobAction(s.retryJob))
+	mux.HandleFunc("/review", s.reviewPage)
+	mux.HandleFunc("/review/decide", s.reviewAction(s.decideClip))
+	mux.HandleFunc("/review/post", s.reviewAction(s.addPost))
+	mux.HandleFunc("/review/post-update", s.reviewAction(s.updatePost))
 	mux.Handle("/assets/", staticHandler())
 	mux.Handle("/assets/branding/", brandingHandler())
 	mux.HandleFunc("/assets/themes.css", s.themesStylesheet)
@@ -384,6 +397,8 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/themes/refresh", s.refreshThemes)
 	mux.HandleFunc("/themes/duplicate", s.duplicateTheme)
 	mux.HandleFunc("/themes/save", s.saveTheme)
+	mux.HandleFunc("/api/worker/claim", s.workerAuth(s.workerClaim))
+	mux.HandleFunc("/api/worker/ops/", s.workerAuth(s.workerOp))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -486,6 +501,10 @@ func Serve(opts Options) error {
 		return err
 	}
 	defer listener.Close()
+	if s.workerToken, err = ensureWorkerToken(dataDir); err != nil {
+		return fmt.Errorf("worker token: %w", err)
+	}
+	s.startJobs()
 	server := &http.Server{Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	s.log.Printf("server %s listening on %s, data directory %s", Version, addr, dataDir)
 	if exposed {

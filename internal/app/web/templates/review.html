@@ -1,0 +1,62 @@
+{{define "content"}}
+<div class="page-top"><div><div class="eyebrow">Human review</div>
+<h1>Review</h1>
+<p>Nothing is posted for you. Approve a clip, download it, post it yourself, then record the post link to track it against its campaign.</p>
+</div>
+<span class="badge">Manual posting</span></div>
+<div class="stats"><div class="card metric-card"><h2>Pending</h2>
+<div class="metric">{{.Pending}}</div>
+<small>Passed checks, waiting for you</small></div>
+<div class="card metric-card"><h2>Approved</h2>
+<div class="metric">{{.Approved}}</div>
+<small>Ready to post or posted</small></div>
+<div class="card metric-card"><h2>Rejected</h2>
+<div class="metric">{{.Rejected}}</div>
+<small>Kept on disk, not used</small></div>
+</div>
+{{template "flash" .}}<div class="tabs" role="tablist" aria-label="Review views"><a role="tab" aria-selected="{{if eq .View "pending"}}true{{else}}false{{end}}" class="{{if eq .View "pending"}}active{{end}}" href="/review?view=pending">Pending ({{.Pending}})</a><a role="tab" aria-selected="{{if eq .View "approved"}}true{{else}}false{{end}}" class="{{if eq .View "approved"}}active{{end}}" href="/review?view=approved">Approved ({{.Approved}})</a><a role="tab" aria-selected="{{if eq .View "rejected"}}true{{else}}false{{end}}" class="{{if eq .View "rejected"}}active{{end}}" href="/review?view=rejected">Rejected ({{.Rejected}})</a></div>
+<div class="clip-grid">{{range .Clips}}{{$clip := .}}<div class="card"><video class="clip-video" controls preload="metadata" src="/media/clip/{{.ID}}/video"></video>
+<h2>{{.Title}}</h2>
+<p class="muted">{{.Hook}}</p>
+<p><small>Job <a class="link" href="/jobs?id={{.JobID}}">{{.JobID}} · {{.JobTitle}}</a> · {{clock .StartMS}}–{{clock .EndMS}} · {{clock .DurationMS}} · {{bytes .Size}}</small></p>
+<p><small>Campaign: {{if .CampaignTitle}}{{.CampaignTitle}}{{else}}none{{end}} · Captions {{.Captions}}</small></p>
+{{if .Reason}}<details><summary>Reviewer's reason</summary>
+<p><small>{{.Reason}}</small></p>
+</details>
+{{end}}<details><summary>Transcript</summary>
+<p><small>{{.Text}}</small></p>
+</details>
+<div class="actions"><a class="btn secondary small" href="/media/clip/{{.ID}}/video?download=1">Download</a>{{if .SRTPath}}<a class="btn secondary small" href="/media/clip/{{.ID}}/srt">Captions .srt</a>{{end}}</div>
+<form method="post" action="/review/decide"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="view" value="{{$.View}}"><label for="note-{{.ID}}">Note (optional)</label>
+<input id="note-{{.ID}}" name="note" maxlength="8000" value="{{.Note}}"><div class="actions">{{if ne .Decision "approved"}}<button class="small" type="submit" name="decision" value="approved">Approve</button>{{end}}{{if ne .Decision "rejected"}}<button class="secondary small" type="submit" name="decision" value="rejected">Reject</button>{{end}}{{if ne .Decision "pending"}}<button class="secondary small" type="submit" name="decision" value="pending">Back to pending</button>{{end}}</div>
+</form>
+{{if eq .Decision "approved"}}{{range .Submissions}}<details><summary>Post: {{.Status}}{{if .Views}} · {{.Views}} views{{end}}{{if .EarningsCents}} · {{money .EarningsCents}}{{end}}</summary>
+<p><a class="external wrap" href="{{.PostURL}}" rel="noopener noreferrer" target="_blank">{{.PostURL}}</a></p>
+{{$post := .}}<form method="post" action="/review/post-update"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="view" value="approved"><div class="form-grid"><div><label>Status</label>
+<select name="status">{{range $.Statuses}}<option value="{{.}}"{{if eq $post.Status .}} selected{{end}}>{{.}}</option>
+{{end}}</select>
+</div>
+<div><label>Views</label>
+<input name="views" inputmode="numeric" pattern="[0-9]*" value="{{with .Views}}{{.}}{{end}}"></div>
+<div><label>Earnings</label>
+<input name="earnings" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" value="{{moneyInput .EarningsCents}}"></div>
+<div class="wide"><label>Notes</label>
+<input name="notes" maxlength="8000" value="{{.Notes}}"></div>
+</div>
+<div class="actions"><button class="secondary small" type="submit">Save post</button></div>
+</form>
+</details>
+{{end}}{{if .CampaignID}}<details><summary class="btn secondary small">Record a post</summary>
+<form method="post" action="/review/post"><input type="hidden" name="clip" value="{{.ID}}"><input type="hidden" name="view" value="approved"><label for="post-{{.ID}}">Post URL</label>
+<input id="post-{{.ID}}" name="url" type="url" required maxlength="2048" placeholder="https://…"><label for="status-{{.ID}}">Status</label>
+<select id="status-{{.ID}}" name="status">{{range $.Statuses}}<option value="{{.}}">{{.}}</option>
+{{end}}</select>
+<label for="notes-{{.ID}}">Notes (optional)</label>
+<input id="notes-{{.ID}}" name="notes" maxlength="8000"><div class="actions"><button class="small" type="submit">Save post</button></div>
+</form>
+</details>
+{{else}}<p class="muted"><small>This clip's job has no campaign, so posts aren't tracked.</small></p>
+{{end}}{{end}}</div>
+{{else}}<div class="card"><p class="muted">No {{.View}} clips. Finished jobs put their clips here once they pass the checks.</p></div>
+{{end}}</div>
+{{end}}

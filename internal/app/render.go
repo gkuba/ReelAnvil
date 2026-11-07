@@ -22,7 +22,7 @@ var webAssets embed.FS
 
 // pages maps a page name to its template set: the shared layout and sidebar
 // plus web/templates/<name>.html, which defines "content".
-var pages = parsePages("overview", "campaigns", "general", "themes", "connectors", "storage", "diagnostics", "placeholder", "restart", "ai", "transcription", "media-settings", "services")
+var pages = parsePages("overview", "campaigns", "general", "themes", "connectors", "storage", "diagnostics", "restart", "ai", "transcription", "media-settings", "services", "media", "jobs", "review")
 
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
@@ -33,6 +33,11 @@ func templateFuncs() template.FuncMap {
 		"moneyInput":    store.FormatMoneyInput,
 		"isManual":      func(c store.Campaign) bool { return c.SourceKind == "manual" },
 		"hasValue":      func(v string) bool { return strings.TrimSpace(v) != "" },
+		"bytes":         humanBytes,
+		"cents":         func(c int64) string { return store.FormatMoney(&c) },
+		"clock":         clockMS,
+		"elapsed":       elapsed,
+		"when":          when,
 	}
 }
 
@@ -135,13 +140,10 @@ func staticHandler() http.Handler {
 
 type pageSpec struct{ page, title, nav string }
 
-// sections maps placeholder and settings URLs to their page and title.
+// sections maps the status and settings URLs to their page and title.
 // nav overrides the sidebar section ID, which is otherwise the last path
 // element (that would make /settings/media light up the Media group).
 var sections = map[string]pageSpec{
-	"/jobs":                   {"placeholder", "Jobs", ""},
-	"/media":                  {"placeholder", "Media", ""},
-	"/review":                 {"placeholder", "Review", ""},
 	"/services":               {"services", "Services", ""},
 	"/diagnostics":            {"diagnostics", "Diagnostics", ""},
 	"/settings":               {"general", "Settings", ""},

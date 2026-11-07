@@ -1,18 +1,20 @@
 # Managed by "reelanvil install". Edits are overwritten by upgrade and doctor --repair.
 [Unit]
-Description=ReelAnvil worker (stand-in: starts the Podman services until reelanvil worker exists)
+Description=ReelAnvil worker (starts the Podman services, then runs media jobs for the web app)
 After=network-online.target user@{{.UID}}.service
 Wants=network-online.target
 Requires=user@{{.UID}}.service
 PartOf=reelanvil.service
 
 [Service]
-Type=oneshot
-RemainAfterExit=yes
+Type=simple
 User={{.User}}
 Group={{.User}}
 WorkingDirectory={{.Root}}/containers
 Environment=XDG_RUNTIME_DIR=/run/user/{{.UID}}
-ExecStart={{.ComposeBin}} up -d
-ExecStop={{.ComposeBin}} down
+ExecStartPre={{.ComposeBin}} up -d
+ExecStart={{.Root}}/server/reelanvil worker --data-dir {{.Root}}/server --server 127.0.0.1:{{.Port}}
+ExecStopPost={{.ComposeBin}} down
+Restart=on-failure
+RestartSec=10
 TimeoutStartSec=30min

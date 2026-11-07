@@ -19,6 +19,7 @@ Commands:
   install   set up Podman, the reelanvil user and /opt/ReelAnvil (--service adds systemd units)
   upgrade   update the binary, compose.yaml and images of a system install (--dry-run)
   uninstall remove what install set up (--yes skips the questions; --delete-data also deletes settings and media)
+  worker    run media operations for a local serve (--data-dir, --server 127.0.0.1:4747)
   version   print the build version
 
 Flags for serve and doctor (install, upgrade and uninstall take --yes, --dir, --port):
@@ -36,6 +37,8 @@ func main() {
 		run = app.Serve
 	case "doctor":
 		os.Exit(runDoctor(os.Args[2:]))
+	case "worker":
+		os.Exit(runWorker(os.Args[2:]))
 	case "install", "upgrade", "uninstall":
 		os.Exit(runInstall(command, os.Args[2:]))
 	case "version", "--version":
@@ -109,4 +112,26 @@ func envOr(name, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func runWorker(args []string) int {
+	var opts app.WorkerOptions
+	flags := flag.NewFlagSet("reelanvil worker", flag.ContinueOnError)
+	flags.StringVar(&opts.DataDir, "data-dir", envOr("REELANVIL_DATA_DIR", "."), "the serve data directory (env REELANVIL_DATA_DIR)")
+	flags.StringVar(&opts.Server, "server", "127.0.0.1:4747", "loopback host:port of the web app")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if flags.NArg() > 0 {
+		fmt.Fprintln(os.Stderr, "unexpected arguments:", flags.Args())
+		return 2
+	}
+	if err := app.RunWorker(opts); err != nil {
+		fmt.Fprintln(os.Stderr, "reelanvil worker:", err)
+		return 1
+	}
+	return 0
 }

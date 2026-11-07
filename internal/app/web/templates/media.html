@@ -1,0 +1,58 @@
+{{define "content"}}
+<div class="page-top"><div><div class="eyebrow">Media library</div>
+<h1>Media</h1>
+<p>Start a clip job from a file in <code>incoming/</code> or an https link you have the rights to use. Originals are kept in <code>archive/</code>.</p>
+</div>
+<a class="btn secondary small" href="/jobs">View jobs</a></div>
+{{template "flash" .}}<div class="card"><h2>New clip job</h2>
+<form method="post" action="/media/jobs"><div class="form-grid"><div><label for="origin">Source</label>
+<select id="origin" name="origin"><option value="file">File in incoming/</option>
+<option value="url">https link</option>
+</select>
+</div>
+<div><label for="file">File</label>
+<select id="file" name="file">{{range .Incoming}}<option value="{{.Name}}">{{.Name}} ({{bytes .Size}})</option>
+{{else}}<option value="">No files in incoming/</option>
+{{end}}</select>
+</div>
+<div class="wide"><label for="url">Video link (when Source is https link)</label>
+<input id="url" name="url" type="url" inputmode="url" maxlength="2048" placeholder="https://…"></div>
+<div><label for="title">Title (optional)</label>
+<input id="title" name="title" maxlength="160" placeholder="Uses the file or link name"></div>
+<div><label for="campaign">Campaign</label>
+<select id="campaign" name="campaign"><option value="">No campaign</option>
+{{range .Campaigns}}<option value="{{.ID}}"{{if eq $.Picked .ID}} selected{{end}}>{{.Title}}</option>
+{{end}}</select>
+</div>
+<div><label for="clips">Clips to make</label>
+<input id="clips" name="clips" type="number" min="1" max="5" value="3" required></div>
+<div class="form-grid"><div><label for="min_s">Shortest (s)</label>
+<input id="min_s" name="min_s" type="number" min="5" max="179" value="20" required></div>
+<div><label for="max_s">Longest (s)</label>
+<input id="max_s" name="max_s" type="number" min="6" max="180" value="60" required></div>
+</div>
+<div class="wide"><label class="check"><input type="checkbox" name="rights" value="yes" required> I own this media or have permission to clip and post it.</label></div>
+</div>
+<div class="actions"><button type="submit">Queue job</button></div>
+</form>
+<p class="muted">Media root: <code class="wrap">{{.Root}}</code>. Copy videos into <code>incoming/</code> to list them here.</p>
+</div>
+<div class="card table-wrap"><h2>Imported sources</h2>
+<table class="table"><thead><tr><th>Source</th>
+<th>Length</th>
+<th>Size</th>
+<th>Picture</th>
+<th>Imported</th>
+</tr>
+</thead>
+<tbody>{{range .Sources}}<tr><td><strong>{{.Title}}</strong><span class="muted wrap">{{.Path}}</span></td>
+<td>{{clock .DurationMS}}</td>
+<td>{{bytes .Size}}</td>
+<td>{{.Width}}×{{.Height}}{{if not .HasAudio}} · no audio{{end}}</td>
+<td>{{when .CreatedAt}}</td>
+</tr>
+{{else}}<tr><td colspan="5" class="muted">No sources imported yet.</td></tr>
+{{end}}</tbody>
+</table>
+</div>
+{{end}}

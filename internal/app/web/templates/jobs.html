@@ -1,0 +1,80 @@
+{{define "head"}}{{if .Active}}<meta http-equiv="refresh" content="4">{{end}}{{end}}
+{{define "content"}}
+<div class="page-top"><div><div class="eyebrow">Pipeline</div>
+<h1>Jobs</h1>
+<p>Import → transcript → clip hunt → independent review → render → checks. Each stage shows its real progress and time taken.</p>
+</div>
+<a class="btn small" href="/media">New job</a></div>
+{{template "flash" .}}{{with .Job}}<div class="card"><div class="page-top"><div><h2>Job {{.ID}} · {{.Title}}</h2>
+<p class="muted wrap">{{.Origin}}: {{.Ref}}{{if .CampaignTitle}} · Campaign: {{.CampaignTitle}}{{end}} · {{.ClipCount}} clip(s), {{.MinS}}–{{.MaxS}} s</p></div>
+<span class="badge status">{{.State}}</span></div>
+{{if .Detail}}<p>{{.Detail}}</p>
+{{end}}{{if .Error}}<div class="note error" role="alert">{{.Error}}</div>
+{{end}}<ul class="steps">{{range .Steps}}<li><strong>{{.Name}}</strong><div>{{if and (eq .State "running") (gt .Total 0)}}<progress value="{{.Done}}" max="{{.Total}}"></progress>
+{{end}}<small>{{.State}}{{if .Detail}} · {{.Detail}}{{end}}</small></div>
+<small>{{elapsed .Elapsed}}</small></li>
+{{end}}</ul>
+<p class="muted">Total time: {{elapsed .Elapsed}}</p>
+<div class="actions">{{if or (eq .State "queued") (eq .State "running")}}<form method="post" action="/jobs/cancel"><input type="hidden" name="id" value="{{.ID}}"><button class="secondary small" type="submit">Cancel job</button></form>
+{{end}}{{if or (eq .State "failed") (eq .State "blocked") (eq .State "cancelled")}}<form method="post" action="/jobs/retry"><input type="hidden" name="id" value="{{.ID}}"><button class="small" type="submit">Retry</button></form>
+{{end}}{{if eq .State "completed"}}<a class="btn small" href="/review">Review clips</a>{{end}}</div>
+</div>
+{{end}}{{if .Candidates}}<div class="card table-wrap"><h2>Clip candidates</h2>
+<table class="table"><thead><tr><th>Candidate</th>
+<th>Span</th>
+<th>Strength</th>
+<th>Review</th>
+</tr>
+</thead>
+<tbody>{{range .Candidates}}<tr><td><strong>{{.Title}}</strong><span class="muted">{{.Hook}}</span><details><summary>Why and transcript</summary>
+<p>{{.Why}}</p>
+<p><small>{{.Text}}</small></p>
+<p><small>Picked by {{.Model}}</small></p>
+</details>
+</td>
+<td>{{clock .StartMS}}–{{clock .EndMS}}</td>
+<td>{{.Strength}}/10</td>
+<td>{{if .Verdict}}<span class="badge{{if eq .Verdict "accept"}} status{{end}}">{{.Verdict}}</span><p><small>{{.Reason}}</small></p>{{if .ReviewModel}}<small class="muted">by {{.ReviewModel}}</small>{{end}}{{else}}<span class="muted">Not reviewed</span>{{end}}</td>
+</tr>
+{{end}}</tbody>
+</table>
+</div>
+{{end}}{{if .Clips}}<div class="card table-wrap"><h2>Rendered clips</h2>
+<table class="table"><thead><tr><th>Clip</th>
+<th>Length</th>
+<th>Checks</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>{{range .Clips}}<tr><td><strong>{{.Title}}</strong><span class="muted wrap">{{.Path}}</span></td>
+<td>{{clock .DurationMS}} · {{bytes .Size}}</td>
+<td><span class="{{if .QAPass}}status-ok{{else}}status-warn{{end}}">{{if .QAPass}}Passed{{else}}Failed{{end}}</span><p><small>{{.QA}} · captions {{.Captions}}</small></p></td>
+<td>{{.Decision}}</td>
+</tr>
+{{end}}</tbody>
+</table>
+</div>
+{{end}}{{if .Job}}<div class="card"><h2>Log</h2>
+<pre class="log">{{range .Log}}{{when .At}}  {{.Level}}  {{.Message}}
+{{else}}No log lines yet.{{end}}</pre>
+</div>
+{{end}}<div class="card table-wrap"><h2>All jobs</h2>
+<table class="table"><thead><tr><th>Job</th>
+<th>Campaign</th>
+<th>State</th>
+<th>Time</th>
+<th>Created</th>
+</tr>
+</thead>
+<tbody>{{range .Jobs}}<tr><td><a href="/jobs?id={{.ID}}"><strong>{{.ID}} · {{.Title}}</strong></a><span class="muted">{{.Detail}}</span></td>
+<td>{{if .CampaignTitle}}{{.CampaignTitle}}{{else}}<span class="muted">None</span>{{end}}</td>
+<td><span class="badge status">{{.State}}</span></td>
+<td>{{elapsed .Elapsed}}</td>
+<td>{{when .CreatedAt}}</td>
+</tr>
+{{else}}<tr><td colspan="5" class="muted">No jobs yet. Start one from Media.</td></tr>
+{{end}}</tbody>
+</table>
+</div>
+{{if .Active}}<p class="muted">This page refreshes every few seconds while a job runs. No time estimate is shown.</p>{{end}}
+{{end}}

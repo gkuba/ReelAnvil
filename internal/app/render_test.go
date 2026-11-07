@@ -35,7 +35,7 @@ func TestEveryPageRendersWithSharedAssets(t *testing.T) {
 			t.Fatalf("GET %s = %d", path, w.Code)
 		}
 		for _, want := range []string{`href="/assets/themes.css"`, `href="/assets/app.css?v=`, `src="/assets/app.js?v=`, `id="app-sidebar"`, "Build " + Version} {
-			if path == "/" || path == "/campaigns" {
+			if path == "/" || path == "/campaigns" || path == "/jobs" || path == "/media" || path == "/review" {
 				if want == "Build "+Version {
 					continue
 				}
@@ -68,6 +68,9 @@ func TestStaticAssetsAndThemeStylesheet(t *testing.T) {
 	}
 	if csp := w.Header().Get("Content-Security-Policy"); strings.Contains(csp, "unsafe-inline") {
 		t.Fatalf("CSP still allows inline code: %s", csp)
+	} else if !strings.Contains(csp, "media-src 'self'") {
+		// Without it, default-src 'none' blocks the Review page's <video>.
+		t.Fatalf("CSP blocks same-origin video: %s", csp)
 	}
 }
 

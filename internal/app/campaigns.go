@@ -18,6 +18,7 @@ type campaignPageData struct {
 	Available, Tracked, EndingSoon       int
 	Platforms                            []store.Platform
 	Statuses                             []string
+	Work                                 map[string]store.CampaignWork
 }
 
 type overviewPageData struct {
@@ -86,7 +87,14 @@ func (s *Server) campaignsPage(w http.ResponseWriter, r *http.Request) {
 		rows = append(rows, c)
 	}
 	sort.SliceStable(rows, func(i, j int) bool { return campaignLess(rows[i], rows[j], sortKey) })
+	ctx, cancel := context.WithTimeout(r.Context(), storeTimeout)
+	defer cancel()
+	work, err := s.store.CampaignWork(ctx)
+	if err != nil {
+		s.log.Println("campaign work:", err)
+	}
 	s.render(w, "campaigns", campaignPageData{
+		Work:     work,
 		pageBase: s.base(w, r, "Campaigns", "campaigns"),
 		View:     view, Search: search, Platform: platform, Status: status, Sort: sortKey,
 		Campaigns: rows, Available: available, Tracked: tracked, EndingSoon: ending,
