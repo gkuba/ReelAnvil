@@ -135,8 +135,44 @@
     });
   }
 
+  // A card with data-poll="<ms>" is re-read from the same page that often and
+  // replaced in place, so progress updates without a page reload or flash.
+  // Polling stops when the new card has no data-poll; elements marked
+  // data-refresh are then updated once from the same response.
+  function initPoll() {
+    document.querySelectorAll('[data-poll][id]').forEach(function (card) {
+      const id = card.id;
+      const wait = Math.max(1000, parseInt(card.dataset.poll, 10) || 3000);
+      async function tick() {
+        try {
+          const res = await fetch(location.pathname, { headers: { 'Accept': 'text/html' } });
+          if (!res.ok) { throw new Error(res.status); }
+          const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+          const fresh = doc.getElementById(id);
+          const current = document.getElementById(id);
+          if (!fresh || !current) { return; }
+          current.replaceWith(fresh);
+          if (fresh.hasAttribute('data-poll')) { setTimeout(tick, wait); return; }
+          // Done: also refresh elements marked data-refresh (such as model
+          // lists that a finished pull adds to), keeping a select's choice.
+          document.querySelectorAll('[data-refresh][id]').forEach(function (el) {
+            const next = doc.getElementById(el.id);
+            if (!next) { return; }
+            const value = el.value;
+            el.replaceWith(next);
+            if (next.tagName === 'SELECT' && [...next.options].some(function (o) { return o.value === value; })) { next.value = value; }
+          });
+        } catch (e) {
+          setTimeout(tick, wait * 2);
+        }
+      }
+      setTimeout(tick, wait);
+    });
+  }
+
   initSidebar();
   initThemePicker();
   initThemeEditor();
   initCopyLinks();
+  initPoll();
 })();

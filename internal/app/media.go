@@ -248,10 +248,23 @@ func (s *Server) retryJob(ctx context.Context, id int64) (string, error) {
 
 // ---- Review ----
 
+// viewLessons is the Review page's tab of lessons taught from clips.
+const viewLessons = "lessons"
+
+// reviewView returns a known Review tab name, pending by default.
+func reviewView(v string) string {
+	switch v {
+	case store.DecisionApproved, store.DecisionRejected, viewLessons:
+		return v
+	}
+	return store.DecisionPending
+}
+
 type reviewPageData struct {
 	pageBase
 	View                        string
 	Clips                       []store.Clip
+	Lessons                     []store.Lesson
 	Pending, Approved, Rejected int
 	Statuses                    []string
 }
@@ -261,10 +274,7 @@ func (s *Server) reviewPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	view := r.URL.Query().Get("view")
-	if view != store.DecisionApproved && view != store.DecisionRejected {
-		view = store.DecisionPending
-	}
+	view := reviewView(r.URL.Query().Get("view"))
 	ctx, cancel := context.WithTimeout(r.Context(), storeTimeout)
 	defer cancel()
 	all, err := s.store.ListClips(ctx, "", 0)
@@ -274,6 +284,9 @@ func (s *Server) reviewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := reviewPageData{pageBase: s.base(w, r, "Review", "review"), View: view, Statuses: store.SubmissionStatuses}
+	if data.Lessons, err = s.store.ListLessons(ctx, 500); err != nil {
+		s.log.Println("list lessons:", err)
+	}
 	for _, c := range all {
 		if !c.QAPass {
 			continue
@@ -311,11 +324,7 @@ func (s *Server) reviewAction(do func(ctx context.Context, r *http.Request) (str
 		} else {
 			setFlash(w, msg, false)
 		}
-		view := r.PostForm.Get("view")
-		if view != store.DecisionApproved && view != store.DecisionRejected {
-			view = store.DecisionPending
-		}
-		http.Redirect(w, r, "/review?view="+view, http.StatusSeeOther)
+		http.Redirect(w, r, "/review?view="+reviewView(r.PostForm.Get("view")), http.StatusSeeOther)
 	}
 }
 
@@ -325,9 +334,23 @@ func formID(r *http.Request, key string) int64 {
 }
 
 func (s *Server) decideClip(ctx context.Context, r *http.Request) (string, error) {
-	d := r.PostForm.Get("decision")
-	if err := s.store.DecideClip(ctx, formID(r, "id"), d, strings.TrimSpace(r.PostForm.Get("note"))); err != nil {
+	d, id := r.PostForm.Get("decision"), formID(r, "id")
+	note := strings.TrimSpace(r.PostForm.Get("note"))
+	// Retry applies only to Reject.
+	retry := d == store.DecisionRejected && r.PostForm.Get("retry") == "1"
+	if retry && note == "" {
+		return "", store.InputErrorf("Add a note saying what to fix.")
+	}
+	if err := s.store.DecideClip(ctx, id, d, note, r.PostForm.Get("feedback") == "1"); err != nil {
 		return "", err
+	}
+	if retry {
+		job, err := s.store.CreateRedoJob(ctx, id, note)
+		if err != nil {
+			return "", err
+		}
+		s.wakeJobs()
+		return fmt.Sprintf("Retry queued as job %d.", job), nil
 	}
 	switch d {
 	case store.DecisionApproved:
@@ -336,6 +359,10 @@ func (s *Server) decideClip(ctx context.Context, r *http.Request) (string, error
 		return "Clip rejected. The file is kept.", nil
 	}
 	return "Clip moved back to pending.", nil
+}
+
+func (s *Server) deleteLesson(ctx context.Context, r *http.Request) (string, error) {
+	return "Lesson deleted.", s.store.DeleteLesson(ctx, formID(r, "id"))
 }
 
 func (s *Server) addPost(ctx context.Context, r *http.Request) (string, error) {

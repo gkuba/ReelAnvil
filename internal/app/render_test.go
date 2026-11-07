@@ -68,8 +68,8 @@ func TestStaticAssetsAndThemeStylesheet(t *testing.T) {
 	}
 	if csp := w.Header().Get("Content-Security-Policy"); strings.Contains(csp, "unsafe-inline") {
 		t.Fatalf("CSP still allows inline code: %s", csp)
-	} else if !strings.Contains(csp, "media-src 'self'") {
-		// Without it, default-src 'none' blocks the Review page's <video>.
+	} else if !strings.Contains(csp, "media-src 'self'") || !strings.Contains(csp, "connect-src 'self'") {
+		// Without them, default-src 'none' blocks the Review page's <video> and the pull card's in-place updates.
 		t.Fatalf("CSP blocks same-origin video: %s", csp)
 	}
 }

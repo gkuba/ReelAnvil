@@ -273,7 +273,12 @@ func (s *Server) aiPull(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
-	model, err := normalizeModelName(r.FormValue("pull_model"))
+	// The free-text "Other model" field wins only when it is not empty.
+	name := r.FormValue("pull_other")
+	if strings.TrimSpace(name) == "" {
+		name = r.FormValue("pull_model")
+	}
+	model, err := normalizeModelName(name)
 	if err == nil && model == "" {
 		err = errors.New("enter a model name such as qwen2.5:3b")
 	}
@@ -288,7 +293,7 @@ func (s *Server) aiPull(w http.ResponseWriter, r *http.Request) {
 	} else {
 		setFlash(w, "Pulling "+model+" from Ollama. The status below updates while it runs.", false)
 	}
-	http.Redirect(w, r, "/settings/ai", http.StatusSeeOther)
+	http.Redirect(w, r, "/settings/ai#pull-card", http.StatusSeeOther)
 }
 
 func (s *Server) aiPullCancel(w http.ResponseWriter, r *http.Request) {
@@ -301,7 +306,7 @@ func (s *Server) aiPullCancel(w http.ResponseWriter, r *http.Request) {
 	} else {
 		setFlash(w, "No model pull is running.", true)
 	}
-	http.Redirect(w, r, "/settings/ai", http.StatusSeeOther)
+	http.Redirect(w, r, "/settings/ai#pull-card", http.StatusSeeOther)
 }
 
 func (s *Server) aiModelTest(w http.ResponseWriter, r *http.Request) {
@@ -344,7 +349,12 @@ type aiPageData struct {
 	Ollama                         ollamaStatus
 	HunterOptions, ReviewerOptions []roleOption
 	Pull                           pullView
+	Host                           hostInfo
+	Compute                        string
+	ModelChoices                   []modelChoice
 	ModelCount                     int
+	RetryChoices                   []int
+	ScoreChoices                   []int
 }
 
 func (s *Server) aiPage(w http.ResponseWriter, r *http.Request, sec pageSpec, section string) {
@@ -357,5 +367,14 @@ func (s *Server) aiPage(w http.ResponseWriter, r *http.Request, sec pageSpec, se
 	data.HunterOptions = roleOptions(data.Ollama.Models, data.Config.HunterModel)
 	data.ReviewerOptions = roleOptions(data.Ollama.Models, data.Config.ReviewerModel)
 	data.Pull = s.pullView()
+	data.Host = detectHost(procMeminfo, drmVendorGlb)
+	data.Compute = ollamaCompute(data.Config.OllamaAddress)
+	data.ModelChoices = modelChoices(data.Host.RAMKB, data.Ollama.Models)
+	for n := 0; n <= MaxAutoRetries; n++ {
+		data.RetryChoices = append(data.RetryChoices, n)
+	}
+	for n := MinMinReviewScore; n <= MaxMinReviewScore; n++ {
+		data.ScoreChoices = append(data.ScoreChoices, n)
+	}
 	s.render(w, sec.page, data)
 }

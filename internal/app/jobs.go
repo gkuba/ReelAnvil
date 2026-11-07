@@ -479,6 +479,72 @@ func (r *run) segments() ([]pipeline.Segment, error) {
 	return toPipeline(segs), nil
 }
 
+// lessons loads the newest lessons for a prompt.
+func (r *run) lessons() []pipeline.Lesson {
+	ls, err := r.s.store.ListLessons(context.Background(), pipeline.PromptLessons)
+	if err != nil {
+		r.logf("Lessons could not be read: %v", err)
+		return nil
+	}
+	out := make([]pipeline.Lesson, len(ls))
+	for i, l := range ls {
+		out[i] = pipeline.Lesson{Kind: l.Kind, Title: l.Title, Note: l.Note}
+	}
+	return out
+}
+
+// fixPadMS is how much transcript around a clip a fix may use.
+const fixPadMS = 90_000
+
+// fixWindow finds the line numbers of the clip startMS..endMS (a, b) and of
+// the stretch within fixPadMS of it (from, to).
+func fixWindow(segs []pipeline.Segment, startMS, endMS int64) (from, to, a, b int) {
+	a, b, from, to = -1, -1, -1, -1
+	for i, sg := range segs {
+		if sg.EndMS > startMS && a < 0 {
+			a = i
+		}
+		if sg.StartMS < endMS {
+			b = i
+		}
+		if sg.EndMS > startMS-fixPadMS && from < 0 {
+			from = i
+		}
+		if sg.StartMS < endMS+fixPadMS {
+			to = i
+		}
+	}
+	a, b = max(a, 0), max(b, 0)
+	return max(from, 0), max(to, 0), a, max(b, a)
+}
+
+// ask sends a hunter-form prompt, asks again once when the reply has no valid
+// pick, and returns the valid picks.
+func (r *run) ask(model, prompt, label string, segs []pipeline.Segment, from, to int) ([]pipeline.Pick, error) {
+	raw, err := ollamaGenerate(r.ctx, r.cfg.OllamaAddress, model, prompt)
+	if err != nil {
+		return nil, fmt.Errorf("hunter model: %w", err)
+	}
+	picks, problems := pipeline.ParseHunt(raw, segs, from, to, r.job.MinS, r.job.MaxS)
+	if len(picks) == 0 && len(problems) > 0 {
+		r.logf("%s: asking again (%s)", label, clip(strings.Join(problems, "; "), 300))
+		if raw, err = ollamaGenerate(r.ctx, r.cfg.OllamaAddress, model, pipeline.RetryPrompt(prompt, problems)); err != nil {
+			return nil, fmt.Errorf("hunter model: %w", err)
+		}
+		picks, problems = pipeline.ParseHunt(raw, segs, from, to, r.job.MinS, r.job.MaxS)
+	}
+	if len(problems) > 0 {
+		r.logf("%s: %d suggestion(s) skipped: %s", label, len(problems), clip(strings.Join(problems, "; "), 300))
+	}
+	return picks, nil
+}
+
+func candidateFor(p pipeline.Pick, segs []pipeline.Segment, model string, attempt int) store.Candidate {
+	sp := p.Span(segs)
+	return store.Candidate{StartMS: sp.StartMS, EndMS: sp.EndMS, Title: p.Title, Hook: p.Hook, Payoff: p.Payoff, Why: p.Why,
+		Strength: p.Strength, Text: pipeline.Text(segs, p.Start, p.End), Model: model, Attempt: attempt}
+}
+
 func (r *run) huntStep() error {
 	model := r.cfg.HunterModel
 	if model == "" {
@@ -489,26 +555,19 @@ func (r *run) huntStep() error {
 		return err
 	}
 	brief := r.brief()
+	lessons := r.lessons()
+	if r.job.RedoClipID != 0 {
+		return r.huntRedo(model, segs, brief, lessons)
+	}
 	windows := pipeline.Windows(segs, hunterWindowChars)
 	r.logf("Looking for clips with %s in %d part(s) of the transcript", model, len(windows))
 	var all []pipeline.Pick
 	for i, win := range windows {
 		r.progress(int64(i), int64(len(windows)), fmt.Sprintf("Part %d of %d", i+1, len(windows)))
-		prompt := pipeline.HunterPrompt(brief, segs, win[0], win[1], r.job.ClipCount, r.job.MinS, r.job.MaxS)
-		raw, err := ollamaGenerate(r.ctx, r.cfg.OllamaAddress, model, prompt)
+		prompt := pipeline.HunterPrompt(brief, segs, win[0], win[1], r.job.ClipCount, r.job.MinS, r.job.MaxS, lessons)
+		picks, err := r.ask(model, prompt, fmt.Sprintf("Part %d", i+1), segs, win[0], win[1])
 		if err != nil {
-			return fmt.Errorf("hunter model: %w", err)
-		}
-		picks, problems := pipeline.ParseHunt(raw, segs, win[0], win[1], r.job.MinS, r.job.MaxS)
-		if len(picks) == 0 && len(problems) > 0 {
-			r.logf("Part %d: asking again (%s)", i+1, clip(strings.Join(problems, "; "), 300))
-			if raw, err = ollamaGenerate(r.ctx, r.cfg.OllamaAddress, model, pipeline.RetryPrompt(prompt, problems)); err != nil {
-				return fmt.Errorf("hunter model: %w", err)
-			}
-			picks, problems = pipeline.ParseHunt(raw, segs, win[0], win[1], r.job.MinS, r.job.MaxS)
-		}
-		if len(problems) > 0 {
-			r.logf("Part %d: %d suggestion(s) skipped: %s", i+1, len(problems), clip(strings.Join(problems, "; "), 300))
+			return err
 		}
 		all = append(all, picks...)
 	}
@@ -520,12 +579,84 @@ func (r *run) huntStep() error {
 	}
 	cands := make([]store.Candidate, len(best))
 	for i, p := range best {
-		sp := p.Span(segs)
-		cands[i] = store.Candidate{StartMS: sp.StartMS, EndMS: sp.EndMS, Title: p.Title, Hook: p.Hook, Payoff: p.Payoff, Why: p.Why,
-			Strength: p.Strength, Text: pipeline.Text(segs, p.Start, p.End), Model: model}
+		cands[i] = candidateFor(p, segs, model, r.job.Attempt)
 	}
 	r.done = fmt.Sprintf("%d candidates", len(cands))
 	return r.s.store.ReplaceCandidates(context.Background(), r.job.ID, cands)
+}
+
+// huntRedo looks for one clip that fixes the user's note about a rejected clip,
+// in the transcript around it.
+func (r *run) huntRedo(model string, segs []pipeline.Segment, brief pipeline.Brief, lessons []pipeline.Lesson) error {
+	orig, err := r.s.store.ClipByID(context.Background(), r.job.RedoClipID)
+	if err != nil {
+		return fmt.Errorf("the clip to redo: %w", err)
+	}
+	from, to, a, b := fixWindow(segs, orig.StartMS, orig.EndMS)
+	r.logf("Retrying clip %d with %s: %s", orig.ID, model, clip(r.job.RedoNote, 300))
+	r.progress(0, 1, "Looking near the original clip")
+	prompt := pipeline.FixPrompt(brief, segs, from, to, a, b, r.job.RedoNote, r.job.MinS, r.job.MaxS, lessons)
+	picks, err := r.ask(model, prompt, "Retry", segs, from, to)
+	if err != nil {
+		return err
+	}
+	best := pipeline.Best(picks, 1)
+	if len(best) == 0 {
+		return errors.New("no usable clip came back for the retry; try a clearer note or another model")
+	}
+	r.progress(1, 1, "")
+	r.done = "1 candidate"
+	return r.s.store.ReplaceCandidates(context.Background(), r.job.ID, []store.Candidate{candidateFor(best[0], segs, model, r.job.Attempt)})
+}
+
+// reviewOne asks the reviewer to judge one candidate, asking again once when
+// the reply cannot be read. A model "accept" with any score below the
+// setting becomes a reject whose reason names the lowest criterion.
+func (r *run) reviewOne(model string, brief pipeline.Brief, segs []pipeline.Segment, lessons []pipeline.Lesson, c store.Candidate) (verdict, reason string, err error) {
+	a, b, ok := segRange(segs, c.StartMS, c.EndMS)
+	if !ok {
+		return "", "", fmt.Errorf("candidate %d does not match the transcript", c.ID)
+	}
+	prompt := pipeline.ReviewPrompt(brief, segs, a, b, lessons)
+	var rev pipeline.Review
+	for try := 0; try < 2 && rev.Verdict == ""; try++ {
+		raw, err := ollamaGenerate(r.ctx, r.cfg.OllamaAddress, model, prompt)
+		if err != nil {
+			return "", "", fmt.Errorf("reviewer model: %w", err)
+		}
+		var perr error
+		if rev, perr = pipeline.ParseReview(raw, a, b); perr != nil {
+			r.logf("Candidate %d: reply not usable (%v)", c.Ord, perr)
+		}
+	}
+	if rev.Verdict == "" {
+		r.logf("Candidate %d: reject, the reviewer's reply could not be read", c.Ord)
+		return "reject", "The reviewer's reply could not be read.", r.s.store.SaveReview(context.Background(), c.ID, "reject", "The reviewer's reply could not be read.", model, "", "")
+	}
+	rev = pipeline.Gate(rev, r.cfg.MinReviewScore)
+	var sc []string
+	for _, k := range pipeline.ReviewCriteria {
+		sc = append(sc, fmt.Sprintf("%s %d", k, rev.Scores[k]))
+	}
+	r.logf("Candidate %d: %s → %s", c.Ord, strings.Join(sc, ", "), rev.Verdict)
+	scores, _ := json.Marshal(struct {
+		Scores  map[string]int    `json:"scores"`
+		Reasons map[string]string `json:"reasons"`
+	}{rev.Scores, rev.Reasons})
+	type partMS struct {
+		Part string `json:"part"`
+		MS   int64  `json:"ms"`
+	}
+	parts := make([]partMS, 0, len(rev.Parts))
+	for _, p := range rev.Parts {
+		parts = append(parts, partMS{p.Part, max(segs[p.Line].StartMS-c.StartMS, 0)})
+	}
+	partsJSON := ""
+	if len(parts) > 0 {
+		b, _ := json.Marshal(parts)
+		partsJSON = string(b)
+	}
+	return rev.Verdict, rev.Reason, r.s.store.SaveReview(context.Background(), c.ID, rev.Verdict, rev.Reason, model, string(scores), partsJSON)
 }
 
 // segRange finds the segment indices a candidate covers.
@@ -540,6 +671,15 @@ func segRange(segs []pipeline.Segment, startMS, endMS int64) (int, int, bool) {
 		}
 	}
 	return a, b, a >= 0 && b >= a
+}
+
+func overlaps(c store.Candidate, others []store.Candidate) bool {
+	for _, o := range others {
+		if o.Verdict == "accept" && c.StartMS < o.EndMS && o.StartMS < c.EndMS {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *run) reviewStep() error {
@@ -560,41 +700,91 @@ func (r *run) reviewStep() error {
 		return err
 	}
 	brief := r.brief()
+	lessons := r.lessons()
 	accepted := 0
-	for i, c := range cands {
+	for i := range cands {
+		c := &cands[i]
 		r.progress(int64(i), int64(len(cands)), fmt.Sprintf("Candidate %d of %d", i+1, len(cands)))
-		a, b, ok := segRange(segs, c.StartMS, c.EndMS)
-		if !ok {
-			return fmt.Errorf("candidate %d does not match the transcript", c.ID)
-		}
-		prompt := pipeline.ReviewPrompt(brief, segs, a, b)
-		verdict, reason := "", ""
-		for try := 0; try < 2 && verdict == ""; try++ {
-			raw, err := ollamaGenerate(r.ctx, r.cfg.OllamaAddress, model, prompt)
-			if err != nil {
-				return fmt.Errorf("reviewer model: %w", err)
-			}
-			if verdict, reason, err = pipeline.ParseReview(raw); err != nil {
-				r.logf("Candidate %d: reply not usable (%v)", i+1, err)
-			}
-		}
-		if verdict == "" {
-			verdict, reason = "reject", "The reviewer's reply could not be read."
-		}
-		if verdict == "accept" {
-			accepted++
-		}
-		if err := r.s.store.SaveReview(context.Background(), c.ID, verdict, reason, model); err != nil {
+		if c.Verdict, c.Reason, err = r.reviewOne(model, brief, segs, lessons, *c); err != nil {
 			return err
+		}
+		if c.Verdict == "accept" {
+			accepted++
 		}
 	}
 	r.progress(int64(len(cands)), int64(len(cands)), "")
 	r.logf("Reviewer accepted %d of %d", accepted, len(cands))
+	if accepted < r.job.ClipCount && r.cfg.AutoRetries > 0 {
+		if cands, accepted, err = r.autoRetry(model, brief, segs, lessons, cands, accepted); err != nil {
+			return err
+		}
+	}
 	if accepted == 0 {
 		return errors.New("the reviewer turned down every candidate; see the Candidates list")
 	}
 	r.done = fmt.Sprintf("%d of %d accepted", accepted, len(cands))
 	return nil
+}
+
+// autoRetry has the hunter fix the strongest rejected candidates, using the
+// reviewer's reason, until the job has enough accepted clips or each candidate
+// has used up its tries. It returns all candidates, including the new ones.
+func (r *run) autoRetry(reviewer string, brief pipeline.Brief, segs []pipeline.Segment, lessons []pipeline.Lesson, cands []store.Candidate, accepted int) ([]store.Candidate, int, error) {
+	hunter := r.cfg.HunterModel
+	if hunter == "" {
+		hunter = reviewer
+	}
+	var rejected []store.Candidate
+	for _, c := range cands {
+		if c.Verdict == "reject" {
+			rejected = append(rejected, c)
+		}
+	}
+	sort.SliceStable(rejected, func(i, j int) bool { return rejected[i].Strength > rejected[j].Strength })
+	rejected = rejected[:min(len(rejected), r.job.ClipCount-accepted)]
+	for n, rc := range rejected {
+		last := rc
+		for try := 1; try <= r.cfg.AutoRetries; try++ {
+			r.progress(int64(n), int64(len(rejected)), fmt.Sprintf("Retrying candidate %d, try %d of %d", rc.Ord, try, r.cfg.AutoRetries))
+			from, to, a, b := fixWindow(segs, last.StartMS, last.EndMS)
+			label := fmt.Sprintf("Candidate %d retry %d", rc.Ord, try)
+			picks, err := r.ask(hunter, pipeline.FixPrompt(brief, segs, from, to, a, b, last.Reason, r.job.MinS, r.job.MaxS, lessons), label, segs, from, to)
+			if err != nil {
+				return cands, accepted, err
+			}
+			var next *store.Candidate
+			for _, p := range pipeline.Best(picks, len(picks)) {
+				c := candidateFor(p, segs, hunter, last.Attempt+1)
+				if !overlaps(c, cands) {
+					next = &c
+					break
+				}
+			}
+			if next == nil {
+				r.logf("%s: %s → no usable replacement", label, last.Reason)
+				continue
+			}
+			c, err := r.s.store.AddCandidate(context.Background(), r.job.ID, *next)
+			if err != nil {
+				return cands, accepted, err
+			}
+			if c.Verdict, c.Reason, err = r.reviewOne(reviewer, brief, segs, lessons, c); err != nil {
+				return cands, accepted, err
+			}
+			cands = append(cands, c)
+			outcome := "rejected"
+			if c.Verdict == "accept" {
+				outcome, accepted = "accepted", accepted+1
+			}
+			r.logf("%s: %s → %s", label, last.Reason, outcome)
+			if c.Verdict == "accept" {
+				break
+			}
+			last = c
+		}
+	}
+	r.progress(int64(len(rejected)), int64(len(rejected)), "")
+	return cands, accepted, nil
 }
 
 // ollamaGenerate asks a model for a JSON reply.

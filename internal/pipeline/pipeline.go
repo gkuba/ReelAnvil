@@ -6,6 +6,7 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -122,23 +123,87 @@ func Windows(segs []Segment, maxChars int) [][2]int {
 // the reviewer get it.
 const NotAClip = `Greetings, introductions, "are you ready" or sound and voice checks, thanks and sign-offs, and scheduling or housekeeping talk are not clips. A clip needs real substance: an answer, a story, a fact, an opinion or a reaction.`
 
+// Lesson is something the user taught from a reviewed clip: Kind "good" is a
+// clip they liked, "fix" a problem to avoid.
+type Lesson struct{ Kind, Title, Note string }
+
+// PromptLessons is how many of the newest lessons go into a prompt.
+const PromptLessons = 12
+
+// lessonsText writes the lessons as a prompt section, or "" when there are
+// none. Notes are cut short so the section stays small.
+func lessonsText(lessons []Lesson) string {
+	var liked, avoid []string
+	for _, l := range lessons[:min(len(lessons), PromptLessons)] {
+		note := oneLine(l.Note, 200)
+		switch l.Kind {
+		case "good":
+			line := oneLine(l.Title, 120)
+			if note != "" {
+				line += " — " + note
+			}
+			if line != "" {
+				liked = append(liked, "- "+line)
+			}
+		case "fix":
+			if note != "" {
+				avoid = append(avoid, "- "+note)
+			}
+		}
+	}
+	var sb strings.Builder
+	if len(liked) > 0 {
+		sb.WriteString("\nClips the user liked:\n" + strings.Join(liked, "\n") + "\n")
+	}
+	if len(avoid) > 0 {
+		sb.WriteString("\nProblems the user asked to avoid:\n" + strings.Join(avoid, "\n") + "\n")
+	}
+	return sb.String()
+}
+
 // HunterPrompt asks for clip proposals inside segs[from..to].
-func HunterPrompt(b Brief, segs []Segment, from, to, want, minS, maxS int) string {
+func HunterPrompt(b Brief, segs []Segment, from, to, want, minS, maxS int, lessons []Lesson) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, `You pick short vertical video clips from a transcript.
 %s
 
 Find up to %d moments that work on their own: a strong opening line (hook), a clear point, and an ending that pays it off. Each clip must be %d to %d seconds long. Clips must not overlap. End a clip only where the speakers have finished the whole answer or exchange, never while someone is still talking.
 %s
-
+%s
 Transcript lines are numbered: [number] start-end text.
-`, b.text(), want, minS, maxS, NotAClip)
-	for i := from; i <= to; i++ {
-		fmt.Fprintf(&sb, "[%d] %s-%s %s\n", i, Clock(segs[i].StartMS), Clock(segs[i].EndMS), segs[i].Text)
-	}
-	sb.WriteString(`
+`, b.text(), want, minS, maxS, NotAClip, lessonsText(lessons))
+	writeLines(&sb, segs, from, to)
+	sb.WriteString(hunterReply)
+	return sb.String()
+}
+
+const hunterReply = `
 Reply with JSON only, in this form:
-{"clips":[{"start":<first line number>,"end":<last line number>,"title":"<short title>","hook":"<the opening line>","payoff":"<how it ends>","why":"<why it works>","strength":<1-10>}]}`)
+{"clips":[{"start":<first line number>,"end":<last line number>,"title":"<short title>","hook":"<the opening line>","payoff":"<how it ends>","why":"<why it works>","strength":<1-10>}]}`
+
+func writeLines(sb *strings.Builder, segs []Segment, from, to int) {
+	for i := from; i <= to; i++ {
+		fmt.Fprintf(sb, "[%d] %s-%s %s\n", i, Clock(segs[i].StartMS), Clock(segs[i].EndMS), segs[i].Text)
+	}
+}
+
+// FixPrompt asks for ONE clip inside segs[from..to] that fixes the problem in
+// note. origStart..origEnd are the line numbers of the clip that was turned
+// down. The reply has the hunter's form, so ParseHunt checks it.
+func FixPrompt(b Brief, segs []Segment, from, to, origStart, origEnd int, note string, minS, maxS int, lessons []Lesson) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, `You fix a short vertical video clip that was turned down. The clips are cut from a transcript.
+%s
+
+The turned-down clip is lines %d-%d (%s-%s). The problem: %s
+
+Pick ONE clip that fixes this problem. You may move its start and end, or pick a nearby moment that works better. The clip must be %d to %d seconds long and use only the numbered lines below. End a clip only where the speakers have finished the whole answer or exchange, never while someone is still talking.
+%s
+%s
+Transcript lines are numbered: [number] start-end text.
+`, b.text(), origStart, origEnd, Clock(segs[origStart].StartMS), Clock(segs[origEnd].EndMS), oneLine(note, 600), minS, maxS, NotAClip, lessonsText(lessons))
+	writeLines(&sb, segs, from, to)
+	sb.WriteString(hunterReply + "\nThe list must hold exactly one clip.")
 	return sb.String()
 }
 
@@ -325,25 +390,42 @@ func Text(segs []Segment, from, to int) string {
 // ReviewContext is how many segments around a candidate the reviewer sees.
 const ReviewContext = 2
 
+// ReviewCriteria are the scores the reviewer gives, in the order they are
+// shown and used to break ties.
+var ReviewCriteria = []string{"hook", "complete", "standalone", "interest", "fit"}
+
+// PartLabels are the labels the reviewer may give to lines of a clip.
+var PartLabels = []string{"hook", "setup", "body", "payoff"}
+
 // ReviewPrompt asks an independent reviewer to judge one candidate. It gets
-// the clip text, the text around it and the brief, and nothing from the
-// hunter's reasoning.
-func ReviewPrompt(b Brief, segs []Segment, start, end int) string {
+// the numbered clip lines, the text around them and the brief, and nothing
+// from the hunter's reasoning.
+func ReviewPrompt(b Brief, segs []Segment, start, end int, lessons []Lesson) string {
 	before := Text(segs, start-ReviewContext, start-1)
 	after := Text(segs, end+1, end+ReviewContext)
 	sp := Span{segs[start].StartMS, segs[end].EndMS}
+	var lines strings.Builder
+	for i := start; i <= end; i++ {
+		fmt.Fprintf(&lines, "[%d] %s\n", i, segs[i].Text)
+	}
 	return fmt.Sprintf(`You review a short vertical video clip cut from a longer video, before a person sees it.
 %s
 
-Accept the clip only if it makes sense on its own without the surrounding video, starts with something that holds attention, ends at a natural point, and fits the campaign requirements. Reject it if it stops before the speaker has finished what they were saying. Reject it otherwise.
+Score the clip from 1 (very poor) to 10 (excellent) on each criterion:
+- hook: the first seconds make a viewer keep watching.
+- complete: it starts at the start of a thought and runs until the speaker has finished.
+- standalone: it makes sense without the rest of the video.
+- interest: it is interesting to most viewers, not only insiders.
+- fit: it matches the campaign requirements (10 when there is no campaign brief).
+Give each score a short reason. Label the parts of the clip by line number: hook, setup, body, payoff. Accept the clip only if every score is high.
 %s
-
+%s
 Before the clip: %s
-Clip (%d seconds): %s
-After the clip: %s
+Clip (%d seconds), numbered lines:
+%sAfter the clip: %s
 
-Reply with JSON only: {"verdict":"accept" or "reject","reason":"<one sentence>"}`,
-		b.text(), NotAClip, orNone(before), (sp.EndMS-sp.StartMS)/1000, Text(segs, start, end), orNone(after))
+Reply with JSON only: {"scores":{"hook":<1-10>,"complete":<1-10>,"standalone":<1-10>,"interest":<1-10>,"fit":<1-10>},"reasons":{"hook":"<short phrase>","complete":"<short phrase>","standalone":"<short phrase>","interest":"<short phrase>","fit":"<short phrase>"},"parts":[{"part":"hook","line":<line number>},{"part":"setup","line":<line number>},{"part":"body","line":<line number>},{"part":"payoff","line":<line number>}],"verdict":"accept" or "reject","reason":"<one sentence>"}`,
+		b.text(), NotAClip, lessonsText(lessons), orNone(before), (sp.EndMS-sp.StartMS)/1000, lines.String(), orNone(after))
 }
 
 func orNone(s string) string {
@@ -353,20 +435,85 @@ func orNone(s string) string {
 	return s
 }
 
-// ParseReview reads a reviewer reply.
-func ParseReview(raw string) (verdict, reason string, err error) {
+// Part marks where a part of the clip begins, as a transcript line number.
+type Part struct {
+	Part string `json:"part"`
+	Line int    `json:"line"`
+}
+
+// Review is a reviewer's judgement of one clip.
+type Review struct {
+	Verdict, Reason string
+	Scores          map[string]int
+	Reasons         map[string]string
+	Parts           []Part
+}
+
+// ParseReview reads a reviewer reply about the clip made of lines start to
+// end. All five scores must be whole numbers from 1 to 10; otherwise the
+// caller should ask again. Invalid parts are dropped.
+func ParseReview(raw string, start, end int) (Review, error) {
 	var r struct {
-		Verdict string `json:"verdict"`
-		Reason  string `json:"reason"`
+		Verdict string            `json:"verdict"`
+		Reason  string            `json:"reason"`
+		Scores  map[string]any    `json:"scores"`
+		Reasons map[string]string `json:"reasons"`
+		Parts   []struct {
+			Part string `json:"part"`
+			Line any    `json:"line"`
+		} `json:"parts"`
 	}
-	if err = json.Unmarshal([]byte(extractJSON(raw)), &r); err != nil {
-		return "", "", fmt.Errorf("the reply was not JSON")
+	if err := json.Unmarshal([]byte(extractJSON(raw)), &r); err != nil {
+		return Review{}, fmt.Errorf("the reply was not JSON")
 	}
 	v := strings.ToLower(strings.TrimSpace(r.Verdict))
 	if v != "accept" && v != "reject" {
-		return "", "", fmt.Errorf("unknown verdict %q", r.Verdict)
+		return Review{}, fmt.Errorf("unknown verdict %q", r.Verdict)
 	}
-	return v, oneLine(r.Reason, 500), nil
+	out := Review{Verdict: v, Reason: oneLine(r.Reason, 500), Scores: map[string]int{}, Reasons: map[string]string{}}
+	for _, k := range ReviewCriteria {
+		raw, ok := r.Scores[k]
+		if !ok {
+			return Review{}, fmt.Errorf("the %s score is missing", k)
+		}
+		n, ok := toInt(raw)
+		if !ok || n < 1 || n > 10 {
+			return Review{}, fmt.Errorf("the %s score must be a whole number from 1 to 10", k)
+		}
+		out.Scores[k] = int(n)
+		out.Reasons[k] = oneLine(r.Reasons[k], 120)
+	}
+	last := start - 1
+	for _, p := range r.Parts {
+		label := strings.ToLower(strings.TrimSpace(p.Part))
+		n, ok := toInt(p.Line)
+		if !ok || !slices.Contains(PartLabels, label) || int(n) < start || int(n) > end || int(n) <= last {
+			continue
+		}
+		last = int(n)
+		out.Parts = append(out.Parts, Part{label, last})
+	}
+	return out, nil
+}
+
+// Gate turns an accept into a reject when any score is below min. The reason
+// then names the lowest criterion, which is the note an automatic retry uses.
+func Gate(r Review, min int) Review {
+	low := ""
+	for _, k := range ReviewCriteria {
+		if r.Scores[k] < min && (low == "" || r.Scores[k] < r.Scores[low]) {
+			low = k
+		}
+	}
+	if low == "" {
+		return r
+	}
+	r.Verdict = "reject"
+	r.Reason = fmt.Sprintf("%s %d/10", strings.ToUpper(low[:1])+low[1:], r.Scores[low])
+	if r.Reasons[low] != "" {
+		r.Reason += ": " + r.Reasons[low]
+	}
+	return r
 }
 
 // CaptionWords is the most words on one caption line.

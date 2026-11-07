@@ -80,7 +80,7 @@ func TestPullStreamsRealProgressAndFinishes(t *testing.T) {
 		t.Errorf("second pull: %v", err)
 	}
 	page := get(t, s.handler(), "/settings/ai").Body.String()
-	if !strings.Contains(page, `http-equiv="refresh"`) || !strings.Contains(page, "Pulling qwen2.5:3b") || strings.Contains(page, "Stop pull") == false {
+	if !strings.Contains(page, `id="hunter_model" name="hunter_model" data-refresh`) || !strings.Contains(page, `id="reviewer_model" name="reviewer_model" data-refresh`) || !strings.Contains(page, `data-poll=`) || strings.Contains(page, `http-equiv="refresh"`) || !strings.Contains(page, "Pulling qwen2.5:3b") || strings.Contains(page, "Stop pull") == false {
 		t.Errorf("running page lacks refresh, title or stop button")
 	}
 	close(hold)
@@ -95,7 +95,7 @@ func TestPullStreamsRealProgressAndFinishes(t *testing.T) {
 		t.Errorf("summed bytes %d of %d, want 1500 of 1500", completed, total)
 	}
 	page = get(t, s.handler(), "/settings/ai").Body.String()
-	if strings.Contains(page, `http-equiv="refresh"`) || !strings.Contains(page, "Pulled qwen2.5:3b") || !strings.Contains(page, "finished") || !strings.Contains(page, "Elapsed") {
+	if strings.Contains(page, `data-poll=`) || strings.Contains(page, `http-equiv="refresh"`) || !strings.Contains(page, "Pulled qwen2.5:3b") || !strings.Contains(page, "finished") || !strings.Contains(page, "Elapsed") {
 		t.Errorf("finished page wrong")
 	}
 	for _, banned := range []string{"ETA", "remaining", "left"} {
@@ -207,7 +207,7 @@ func TestPullHandlerValidatesAndStarts(t *testing.T) {
 	srv, got := pullStub(t, []string{`{"status":"success"}`}, nil)
 	s.cfg.OllamaAddress = addrOf(srv)
 	w := post(t, s, "/settings/ai/pull", url.Values{"pull_model": {" llama3.2:1b "}})
-	if f := flashFrom(t, w.Result().Cookies()); f.Error || w.Header().Get("Location") != "/settings/ai" {
+	if f := flashFrom(t, w.Result().Cookies()); f.Error || w.Header().Get("Location") != "/settings/ai#pull-card" {
 		t.Errorf("flash %+v location %q", f, w.Header().Get("Location"))
 	}
 	if body := <-got; body["model"] != "llama3.2:1b" {

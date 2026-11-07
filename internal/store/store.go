@@ -25,6 +25,8 @@ var migrations = []migration{
 	migrateCampaignsV2,
 	migrateCampaignsV3,
 	migrateMediaV4,
+	migrateLessonsV5,
+	migrateScoresV6,
 }
 
 // SchemaVersion is the database schema version this build writes.

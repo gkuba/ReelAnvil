@@ -232,7 +232,12 @@ type Job struct {
 	RightsAt                  string
 	CreatedAt, StartedAt      string
 	FinishedAt, UpdatedAt     string
-	Steps                     []Step
+	// RedoClipID and RedoNote are set on a job made by the Review page's Retry:
+	// it hunts one replacement for that clip. Attempt counts the redo chain.
+	RedoClipID int64
+	RedoNote   string
+	Attempt    int
+	Steps      []Step
 }
 
 // Elapsed is the summed step time.
@@ -295,13 +300,15 @@ func (s *Store) CreateJob(ctx context.Context, in JobInput) (int64, error) {
 }
 
 const jobColumns = `j.id,j.title,j.origin,j.origin_ref,COALESCE(j.source_id,0),COALESCE(j.campaign_id,''),COALESCE(c.title,''),
-	j.state,j.detail,j.error,j.clip_count,j.min_s,j.max_s,j.rights_confirmed_at,j.created_at,j.started_at,j.finished_at,j.updated_at
+	j.state,j.detail,j.error,j.clip_count,j.min_s,j.max_s,j.rights_confirmed_at,j.created_at,j.started_at,j.finished_at,j.updated_at,
+	COALESCE(j.redo_clip_id,0),j.redo_note,j.attempt
 	FROM jobs j LEFT JOIN campaign_sources c ON c.id=j.campaign_id`
 
 func scanJob(row scanner) (Job, error) {
 	var j Job
 	err := row.Scan(&j.ID, &j.Title, &j.Origin, &j.Ref, &j.SourceID, &j.CampaignID, &j.CampaignTitle, &j.State, &j.Detail, &j.Error,
-		&j.ClipCount, &j.MinS, &j.MaxS, &j.RightsAt, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &j.UpdatedAt)
+		&j.ClipCount, &j.MinS, &j.MaxS, &j.RightsAt, &j.CreatedAt, &j.StartedAt, &j.FinishedAt, &j.UpdatedAt,
+		&j.RedoClipID, &j.RedoNote, &j.Attempt)
 	return j, err
 }
 
@@ -584,8 +591,12 @@ type Candidate struct {
 	Title, Hook, Payoff, Why string
 	Strength                 int
 	Text, Model              string
+	Attempt                  int // 1 for the first hunt; higher for a retry's pick
 	// Review, filled by ListCandidates.
 	Verdict, Reason, ReviewModel string
+	// Scores and Parts are JSON the reviewer's scores and labelled parts were
+	// saved as; empty for candidates reviewed before they existed.
+	Scores, Parts string
 }
 
 // ReplaceCandidates stores a job's candidates, replacing any earlier ones
@@ -608,17 +619,27 @@ func (s *Store) ReplaceCandidates(ctx context.Context, jobID int64, cands []Cand
 	}
 	t := now()
 	for i, c := range cands {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO candidates(job_id,ord,start_ms,end_ms,title,hook,payoff,why,strength,text,model,created_at)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, jobID, i+1, c.StartMS, c.EndMS, c.Title, c.Hook, c.Payoff, c.Why, c.Strength, c.Text, c.Model, t); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO candidates(job_id,ord,start_ms,end_ms,title,hook,payoff,why,strength,text,model,attempt,created_at)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, jobID, i+1, c.StartMS, c.EndMS, c.Title, c.Hook, c.Payoff, c.Why, c.Strength, c.Text, c.Model, max(c.Attempt, 1), t); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
 }
 
+// AddCandidate appends a candidate to a job's list and returns it with its
+// ID and order number filled in.
+func (s *Store) AddCandidate(ctx context.Context, jobID int64, c Candidate) (Candidate, error) {
+	c.JobID, c.Attempt = jobID, max(c.Attempt, 1)
+	err := s.db.QueryRowContext(ctx, `INSERT INTO candidates(job_id,ord,start_ms,end_ms,title,hook,payoff,why,strength,text,model,attempt,created_at)
+		VALUES(?,(SELECT COALESCE(max(ord),0)+1 FROM candidates WHERE job_id=?),?,?,?,?,?,?,?,?,?,?,?) RETURNING id,ord`,
+		jobID, jobID, c.StartMS, c.EndMS, c.Title, c.Hook, c.Payoff, c.Why, c.Strength, c.Text, c.Model, c.Attempt, now()).Scan(&c.ID, &c.Ord)
+	return c, err
+}
+
 func (s *Store) ListCandidates(ctx context.Context, jobID int64) ([]Candidate, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.job_id,c.ord,c.start_ms,c.end_ms,c.title,c.hook,c.payoff,c.why,c.strength,c.text,c.model,
-		COALESCE(r.verdict,''),COALESCE(r.reason,''),COALESCE(r.model,'')
+	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.job_id,c.ord,c.start_ms,c.end_ms,c.title,c.hook,c.payoff,c.why,c.strength,c.text,c.model,c.attempt,
+		COALESCE(r.verdict,''),COALESCE(r.reason,''),COALESCE(r.model,''),c.scores,c.parts
 		FROM candidates c LEFT JOIN reviews r ON r.candidate_id=c.id WHERE c.job_id=? ORDER BY c.ord`, jobID)
 	if err != nil {
 		return nil, err
@@ -627,8 +648,8 @@ func (s *Store) ListCandidates(ctx context.Context, jobID int64) ([]Candidate, e
 	var out []Candidate
 	for rows.Next() {
 		var c Candidate
-		if err := rows.Scan(&c.ID, &c.JobID, &c.Ord, &c.StartMS, &c.EndMS, &c.Title, &c.Hook, &c.Payoff, &c.Why, &c.Strength, &c.Text, &c.Model,
-			&c.Verdict, &c.Reason, &c.ReviewModel); err != nil {
+		if err := rows.Scan(&c.ID, &c.JobID, &c.Ord, &c.StartMS, &c.EndMS, &c.Title, &c.Hook, &c.Payoff, &c.Why, &c.Strength, &c.Text, &c.Model, &c.Attempt,
+			&c.Verdict, &c.Reason, &c.ReviewModel, &c.Scores, &c.Parts); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -636,11 +657,23 @@ func (s *Store) ListCandidates(ctx context.Context, jobID int64) ([]Candidate, e
 	return out, rows.Err()
 }
 
-func (s *Store) SaveReview(ctx context.Context, candidateID int64, verdict, reason, model string) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO reviews(candidate_id,verdict,reason,model,created_at) VALUES(?,?,?,?,?)
+// SaveReview stores a candidate's review. scores and parts are JSON (or
+// empty) and are kept on the candidate.
+func (s *Store) SaveReview(ctx context.Context, candidateID int64, verdict, reason, model, scores, parts string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `INSERT INTO reviews(candidate_id,verdict,reason,model,created_at) VALUES(?,?,?,?,?)
 		ON CONFLICT(candidate_id) DO UPDATE SET verdict=excluded.verdict, reason=excluded.reason, model=excluded.model, created_at=excluded.created_at`,
-		candidateID, verdict, reason, model, now())
-	return err
+		candidateID, verdict, reason, model, now()); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE candidates SET scores=?, parts=? WHERE id=?`, scores, parts, candidateID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Clip is a rendered candidate.
@@ -656,7 +689,9 @@ type Clip struct {
 	// Joined for display.
 	JobTitle, CampaignID, CampaignTitle string
 	Title, Hook, Text, Verdict, Reason  string
+	Scores, Parts                       string // JSON, see Candidate
 	StartMS, EndMS                      int64
+	Attempt                             int // of the clip's job
 	Submissions                         []Submission
 }
 
@@ -672,7 +707,8 @@ func (s *Store) AddClip(ctx context.Context, c Clip) (int64, error) {
 // DeletePendingClips removes clip records of a job that no one has decided
 // on, so a render retry starts clean. Files are handled by the caller.
 func (s *Store) DeletePendingClips(ctx context.Context, jobID int64) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM clips WHERE job_id=? AND decision='pending' AND id NOT IN (SELECT clip_id FROM submissions)`, jobID)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM clips WHERE job_id=? AND decision='pending' AND id NOT IN (SELECT clip_id FROM submissions)
+		AND id NOT IN (SELECT redo_clip_id FROM jobs WHERE redo_clip_id IS NOT NULL)`, jobID)
 	return err
 }
 
@@ -683,7 +719,7 @@ func (s *Store) SetClipQA(ctx context.Context, c Clip) error {
 
 const clipColumns = `k.id,k.job_id,k.candidate_id,k.path,k.srt_path,k.duration_ms,k.size,k.width,k.height,k.captions,k.qa,k.qa_pass,
 	k.decision,k.decided_at,k.note,k.created_at,j.title,COALESCE(j.campaign_id,''),COALESCE(cs.title,''),
-	c.title,c.hook,c.text,COALESCE(r.verdict,''),COALESCE(r.reason,''),c.start_ms,c.end_ms
+	c.title,c.hook,c.text,COALESCE(r.verdict,''),COALESCE(r.reason,''),c.start_ms,c.end_ms,j.attempt,c.scores,c.parts
 	FROM clips k JOIN jobs j ON j.id=k.job_id JOIN candidates c ON c.id=k.candidate_id
 	LEFT JOIN reviews r ON r.candidate_id=c.id LEFT JOIN campaign_sources cs ON cs.id=j.campaign_id`
 
@@ -691,7 +727,7 @@ func scanClip(row scanner) (Clip, error) {
 	var c Clip
 	err := row.Scan(&c.ID, &c.JobID, &c.CandidateID, &c.Path, &c.SRTPath, &c.DurationMS, &c.Size, &c.Width, &c.Height, &c.Captions, &c.QA, &c.QAPass,
 		&c.Decision, &c.DecidedAt, &c.Note, &c.CreatedAt, &c.JobTitle, &c.CampaignID, &c.CampaignTitle,
-		&c.Title, &c.Hook, &c.Text, &c.Verdict, &c.Reason, &c.StartMS, &c.EndMS)
+		&c.Title, &c.Hook, &c.Text, &c.Verdict, &c.Reason, &c.StartMS, &c.EndMS, &c.Attempt, &c.Scores, &c.Parts)
 	return c, err
 }
 
@@ -730,20 +766,6 @@ func (s *Store) ListClips(ctx context.Context, decision string, jobID int64) ([]
 		}
 	}
 	return out, nil
-}
-
-func (s *Store) DecideClip(ctx context.Context, id int64, decision, note string) error {
-	if decision != DecisionApproved && decision != DecisionRejected && decision != DecisionPending {
-		return InputErrorf("Unknown decision.")
-	}
-	if err := validateNotes(note); err != nil {
-		return err
-	}
-	decided := now()
-	if decision == DecisionPending {
-		decided = ""
-	}
-	return requireMediaRow(s.db.ExecContext(ctx, `UPDATE clips SET decision=?, decided_at=?, note=? WHERE id=? AND qa_pass=1`, decision, decided, note, id))
 }
 
 // Submission is a post of an approved clip to a campaign, recorded by hand.

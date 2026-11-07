@@ -155,6 +155,12 @@ func (c *Settings) fillServices() (err error) {
 	if c.StorageLimitGB < 0 || c.StorageLimitGB > maxStorageLimitGB {
 		return fmt.Errorf("invalid storage_limit_gb %d", c.StorageLimitGB)
 	}
+	if c.AutoRetries < 0 || c.AutoRetries > MaxAutoRetries {
+		return fmt.Errorf("invalid auto_retries %d", c.AutoRetries)
+	}
+	if c.MinReviewScore < MinMinReviewScore || c.MinReviewScore > MaxMinReviewScore {
+		return fmt.Errorf("invalid min_review_score %d", c.MinReviewScore)
+	}
 	return nil
 }
 
@@ -267,6 +273,12 @@ func applyServiceForm(c *Settings, r *http.Request) error {
 	if err == nil && r.Form.Has("reviewer_model") {
 		c.ReviewerModel, err = normalizeModelName(r.FormValue("reviewer_model"))
 	}
+	if err == nil && r.Form.Has("auto_retries") {
+		c.AutoRetries, err = parseAutoRetries(r.FormValue("auto_retries"))
+	}
+	if err == nil && r.Form.Has("min_review_score") {
+		c.MinReviewScore, err = parseMinReviewScore(r.FormValue("min_review_score"))
+	}
 	if err == nil && r.Form.Has("whisper_model") {
 		c.WhisperModel, err = normalizeWhisperName(r.FormValue("whisper_model"), DefaultWhisperModel)
 	}
@@ -280,6 +292,24 @@ func applyServiceForm(c *Settings, r *http.Request) error {
 		c.StorageLimitGB, err = parseStorageLimit(r.FormValue("storage_limit_gb"))
 	}
 	return err
+}
+
+// parseAutoRetries reads the automatic retries per clip, 0 to MaxAutoRetries.
+func parseAutoRetries(v string) (int, error) {
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n < 0 || n > MaxAutoRetries {
+		return 0, fmt.Errorf("automatic retries must be a whole number from 0 to %d", MaxAutoRetries)
+	}
+	return n, nil
+}
+
+// parseMinReviewScore reads the lowest score a clip may have, 1 to 10.
+func parseMinReviewScore(v string) (int, error) {
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n < MinMinReviewScore || n > MaxMinReviewScore {
+		return 0, fmt.Errorf("lowest score to accept must be a whole number from %d to %d", MinMinReviewScore, MaxMinReviewScore)
+	}
+	return n, nil
 }
 
 // clip shortens text so it fits in a flash message.
@@ -309,6 +339,12 @@ func (s *Server) aiSettings(w http.ResponseWriter, r *http.Request) {
 			}
 			if r.Form.Has("reviewer_model") {
 				next.ReviewerModel = c.ReviewerModel
+			}
+			if r.Form.Has("auto_retries") {
+				next.AutoRetries = c.AutoRetries
+			}
+			if r.Form.Has("min_review_score") {
+				next.MinReviewScore = c.MinReviewScore
 			}
 		}, nil
 	})(w, r)

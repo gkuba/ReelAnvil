@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -88,22 +89,82 @@ func TestBestKeepsStrongestWithoutOverlap(t *testing.T) {
 func TestReviewPromptHidesHunterReasoning(t *testing.T) {
 	s := segs(6, 8000)
 	s[2].Text = "the clip text"
-	p := ReviewPrompt(Brief{Title: "Camp"}, s, 2, 3)
+	p := ReviewPrompt(Brief{Title: "Camp"}, s, 2, 3, nil)
 	if !strings.Contains(p, "the clip text") || !strings.Contains(p, "Camp") {
 		t.Fatal(p)
 	}
 	if !strings.Contains(p, NotAClip) {
 		t.Fatal("reviewer prompt lacks the not-a-clip rule")
 	}
-	if h := HunterPrompt(Brief{}, s, 0, 5, 3, 20, 60); !strings.Contains(h, NotAClip) || !strings.Contains(h, "[5] ") {
+	if h := HunterPrompt(Brief{}, s, 0, 5, 3, 20, 60, nil); !strings.Contains(h, NotAClip) || !strings.Contains(h, "[5] ") {
 		t.Fatal("hunter prompt lacks the not-a-clip rule or lines")
 	}
-	v, r, err := ParseReview(`{"verdict":"Accept","reason":"good"}`)
-	if err != nil || v != "accept" || r != "good" {
-		t.Fatalf("%q %q %v", v, r, err)
+	if !strings.Contains(p, "[2] the clip text") || !strings.Contains(p, "[3] ") || !strings.Contains(p, "fit: ") {
+		t.Fatalf("review prompt lacks numbered lines or criteria:\n%s", p)
 	}
-	if _, _, err = ParseReview(`{"verdict":"maybe"}`); err == nil {
-		t.Fatal("accepted unknown verdict")
+}
+
+const goodReview = `{"scores":{"hook":8,"complete":9,"standalone":7,"interest":6,"fit":10},"reasons":{"hook":"strong question","complete":"ends cleanly","standalone":"ok","interest":"niche","fit":"no brief"},"parts":[{"part":"hook","line":2},{"part":"payoff","line":3}],"verdict":"Accept","reason":"good"}`
+
+func TestParseReview(t *testing.T) {
+	r, err := ParseReview(goodReview, 2, 3)
+	if err != nil || r.Verdict != "accept" || r.Reason != "good" || r.Scores["interest"] != 6 || r.Reasons["hook"] != "strong question" {
+		t.Fatalf("%+v %v", r, err)
+	}
+	if len(r.Parts) != 2 || r.Parts[1] != (Part{"payoff", 3}) {
+		t.Fatalf("parts = %+v", r.Parts)
+	}
+	for name, raw := range map[string]string{
+		"unknown verdict": `{"verdict":"maybe"}`,
+		"missing score":   `{"scores":{"hook":8,"complete":9,"standalone":7,"interest":6},"verdict":"accept"}`,
+		"score too high":  `{"scores":{"hook":11,"complete":9,"standalone":7,"interest":6,"fit":5},"verdict":"accept"}`,
+		"score zero":      `{"scores":{"hook":0,"complete":9,"standalone":7,"interest":6,"fit":5},"verdict":"accept"}`,
+		"score fraction":  `{"scores":{"hook":7.5,"complete":9,"standalone":7,"interest":6,"fit":5},"verdict":"accept"}`,
+		"old reply form":  `{"verdict":"accept","reason":"good"}`,
+		"not json":        `nope`,
+	} {
+		if _, err = ParseReview(raw, 2, 3); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestParseReviewDropsInvalidParts(t *testing.T) {
+	raw := `{"scores":{"hook":8,"complete":9,"standalone":7,"interest":6,"fit":5},"verdict":"reject","reason":"r","reasons":{"hook":"` + strings.Repeat("x", 300) + `"},
+		"parts":[{"part":"intro","line":4},{"part":"setup","line":4},{"part":"body","line":9},{"part":"hook","line":3},{"part":"payoff","line":"6"},{"part":"payoff","line":5},{"part":"body","line":5}]}`
+	r, err := ParseReview(raw, 4, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Unknown label, line outside the clip and out-of-order lines are dropped;
+	// the first kept part need not be the hook.
+	want := []Part{{"setup", 4}, {"payoff", 6}}
+	if len(r.Parts) != len(want) || r.Parts[0] != want[0] || r.Parts[1] != want[1] {
+		t.Fatalf("parts = %+v", r.Parts)
+	}
+	if n := len([]rune(r.Reasons["hook"])); n > 121 {
+		t.Errorf("reason has %d runes", n)
+	}
+}
+
+func TestGate(t *testing.T) {
+	r, _ := ParseReview(goodReview, 2, 3)
+	if g := Gate(r, 6); g.Verdict != "accept" || g.Reason != "good" {
+		t.Fatalf("all clear changed: %+v", g)
+	}
+	g := Gate(r, 7)
+	if g.Verdict != "reject" || g.Reason != "Interest 6/10: niche" {
+		t.Fatalf("gated: %+v", g)
+	}
+	// Ties go in criteria order: hook before complete.
+	r.Scores["hook"], r.Scores["complete"], r.Scores["interest"] = 3, 3, 9
+	if g = Gate(r, 6); g.Reason != "Hook 3/10: strong question" {
+		t.Fatalf("tie: %q", g.Reason)
+	}
+	// A model reject stays a reject with its own reason when scores are fine.
+	r.Scores["hook"], r.Scores["complete"], r.Verdict, r.Reason = 9, 9, "reject", "dull"
+	if g = Gate(r, 6); g.Verdict != "reject" || g.Reason != "dull" {
+		t.Fatalf("model reject changed: %+v", g)
 	}
 }
 
@@ -128,5 +189,69 @@ func TestWindowsAndSafeName(t *testing.T) {
 	}
 	if SafeName("///") != "media" {
 		t.Fatal("empty name")
+	}
+}
+
+var testLessons = []Lesson{
+	{Kind: "good", Title: "The origin story", Note: "short and funny"},
+	{Kind: "fix", Title: "Sound check", Note: "started mid-sentence"},
+}
+
+func TestPromptsIncludeLessonsOnlyWhenThereAreSome(t *testing.T) {
+	s := segs(6, 8000)
+	for name, p := range map[string]string{
+		"hunter":   HunterPrompt(Brief{}, s, 0, 5, 3, 20, 60, testLessons),
+		"reviewer": ReviewPrompt(Brief{}, s, 2, 3, testLessons),
+		"fix":      FixPrompt(Brief{}, s, 0, 5, 2, 3, "too long", 20, 60, testLessons),
+	} {
+		for _, want := range []string{"Clips the user liked:", "- The origin story — short and funny", "Problems the user asked to avoid:", "- started mid-sentence"} {
+			if !strings.Contains(p, want) {
+				t.Errorf("%s prompt lacks %q", name, want)
+			}
+		}
+		if strings.Contains(p, "Sound check") {
+			t.Errorf("%s prompt shows a fix lesson's title", name)
+		}
+	}
+	for name, p := range map[string]string{
+		"hunter":   HunterPrompt(Brief{}, s, 0, 5, 3, 20, 60, nil),
+		"reviewer": ReviewPrompt(Brief{}, s, 2, 3, nil),
+		"fix":      FixPrompt(Brief{}, s, 0, 5, 2, 3, "too long", 20, 60, nil),
+	} {
+		if strings.Contains(p, "the user liked") || strings.Contains(p, "asked to avoid") {
+			t.Errorf("%s prompt has a lessons section without lessons", name)
+		}
+	}
+}
+
+func TestLessonsUseTheNewestTwelveWithShortNotes(t *testing.T) {
+	var ls []Lesson
+	for i := 0; i < 15; i++ {
+		ls = append(ls, Lesson{Kind: "fix", Note: fmt.Sprintf("note-%02d ", i) + strings.Repeat("x", 300)})
+	}
+	text := lessonsText(ls)
+	if !strings.Contains(text, "note-11") || strings.Contains(text, "note-12") {
+		t.Errorf("lessons not cut to 12: %s", text)
+	}
+	if strings.Contains(text, strings.Repeat("x", 250)) {
+		t.Error("note not cut to 200 characters")
+	}
+}
+
+func TestFixPromptNamesTheNoteAndTheOriginalRange(t *testing.T) {
+	s := segs(30, 8000)
+	p := FixPrompt(Brief{Title: "Camp"}, s, 5, 25, 10, 14, "it stops mid-answer", 20, 60, nil)
+	for _, want := range []string{"it stops mid-answer", "lines 10-14", Clock(s[10].StartMS) + "-" + Clock(s[14].EndMS), "[5] ", "[25] ", "20 to 60 seconds", "exactly one clip", "Camp"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("fix prompt lacks %q", want)
+		}
+	}
+	if strings.Contains(p, "[4] ") || strings.Contains(p, "[26] ") {
+		t.Error("fix prompt shows lines outside the window")
+	}
+	// The reply is checked by ParseHunt inside the window.
+	picks, problems := ParseHunt(`{"clips":[{"start":6,"end":9,"title":"Fixed","strength":8}]}`, s, 5, 25, 20, 60)
+	if len(picks) != 1 || len(problems) != 0 || picks[0].Title != "Fixed" {
+		t.Errorf("picks %+v problems %v", picks, problems)
 	}
 }

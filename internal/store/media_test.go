@@ -104,14 +104,14 @@ func TestJobLifecycleOpsClipsAndSubmissions(t *testing.T) {
 	if len(cands) != 1 {
 		t.Fatalf("candidates = %v", cands)
 	}
-	if err = s.SaveReview(ctx, cands[0].ID, "accept", "clear", "r"); err != nil {
+	if err = s.SaveReview(ctx, cands[0].ID, "accept", "clear", "r", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	clipID, err := s.AddClip(ctx, Clip{JobID: id, CandidateID: cands[0].ID, Path: "temp/x.mp4", SRTPath: "temp/x.srt", Captions: "burned"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = s.DecideClip(ctx, clipID, DecisionApproved, ""); err == nil {
+	if err = s.DecideClip(ctx, clipID, DecisionApproved, "", false); err == nil {
 		t.Fatal("approved a clip that has not passed QA")
 	}
 	if err = s.SetClipQA(ctx, Clip{ID: clipID, Path: "completed/1/x.mp4", SRTPath: "completed/1/x.srt", QAPass: true, Width: 1080, Height: 1920}); err != nil {
@@ -120,7 +120,7 @@ func TestJobLifecycleOpsClipsAndSubmissions(t *testing.T) {
 	if _, err = s.AddSubmission(ctx, clipID, "https://example.com/p", "Submitted", ""); err == nil {
 		t.Fatal("recorded a post for a clip that is not approved")
 	}
-	if err = s.DecideClip(ctx, clipID, DecisionApproved, ""); err != nil {
+	if err = s.DecideClip(ctx, clipID, DecisionApproved, "", false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.AddSubmission(ctx, clipID, "http://example.com/p", "Submitted", ""); err == nil {

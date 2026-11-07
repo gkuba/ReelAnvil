@@ -2,6 +2,32 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-11-07 — Build 0.9.2: pull card updates in place (not committed)
+
+- **Changes:** the Settings → AI meta refresh is replaced by `initPoll` in `app.js`. It re-reads the page every 3 s and swaps the `#pull-card` element in place. When the pull ends, it refreshes the `data-refresh` hunter and reviewer lists once, keeping an unsaved choice. The CSP gains `connect-src 'self'` (fetch was blocked without it). Pull and Stop redirect to `/settings/ai#pull-card`.
+- **Verified:** gofmt, vet, `go test -race`, staticcheck and `scripts/build-dev.sh` pass. Tests check `data-poll`, `data-refresh` and the absence of a meta refresh, plus the CSP and the redirect. Deployed to pixelreel; the CSP header was confirmed there. The maintainer re-pulled qwen2.5:14b and confirmed the card updates without flashing ("much better").
+- **Not verified:** a phone-width check of the updating card.
+
+## 2026-11-07 — Build 0.9.2: recommended models on the Pull card (not committed)
+
+- **Changes:** `internal/app/hostinfo.go` reads MemTotal from `/proc/meminfo` and GPU vendor names from `/sys/class/drm/card*/device/vendor` (paths injectable), asks Ollama `/api/ps` for GPU/CPU, and holds a small catalog (qwen2.5 3b/7b/14b; download sizes 1.9/4.7/9.0 GB confirmed on ollama.com tags). Pull card: facts list, dropdown (`pull_model`, default = Recommended), "Other model" field (`pull_other`, wins when non-empty), Download button. No GPU setup added.
+- **Verified:** new tests for meminfo parse, vendor map, recommendation at 4/8/12/20/27 GB and unknown RAM, `/api/ps` GPU/CPU/none/unreachable, page markup, pull from both fields.
+- **Also verified:** gofmt, vet, `go test -race`, `go mod verify`, staticcheck, `scripts/build-dev.sh` pass. Settings → AI checked in headless Chromium against a scratch copy of `bin/Release` (port 18089, no model pulled): card renders at 1400px and 375px, nothing cut off or scrolling sideways in screenshots.
+- **Not verified:** a numeric `scrollWidth` check (screenshots only); a real pull from the dropdown; GPU/CPU text against a loaded model; the maintainer's review.
+
+## 2026-11-06 — Build 0.9.2: reviewer scores and acceptance threshold (not committed)
+
+- **Changes:** reviewer prompt shows numbered clip lines and asks for five 1–10 scores with reasons, labelled parts and a verdict; `ParseReview` requires all five scores (else the reviewer is asked again, then reject) and drops invalid parts; `Gate` rejects when any score is below the setting and uses "Criterion n/10: reason" as the retry note. Schema v6 (`candidates.scores`, `candidates.parts`, JSON; parts stored as clip-relative ms). Settings → AI "Lowest score to accept" (`min_review_score`, 1–10, default 6, 0/missing loads as 6). Job log shows the scores per candidate. Review cards show score chips, reasons and part times.
+- **Verified:** `gofmt -l .` empty, `go vet ./...`, `go test -race ./...`, `go mod verify`, staticcheck, `scripts/build-dev.sh` pass. New tests: parse (valid, missing, out of range, invalid parts), gate, v5→v6 migration, reviewStep rejecting a model "accept" with one low score and retrying with that reason, setting validation, review page chips and parts. Review page checked in headless Chromium at 1400px and 375px against a scratch copy of `bin/Release` (test clip inserted in the scratch DB only): chips, reasons and parts render, no horizontal scroll.
+- **Model check (pixelreel Ollama, reviewer prompt only, not a full job):** qwen2.5:3b gave all five scores in 5 of 5 replies but scored a good test clip 1–4 on hook, so a gate of 6 would reject nearly everything. qwen2.5:7b (pulled on pixelreel) scored the same clip 7–10 and accepted it 3 of 3 times (20–30 s each), and scored a greeting clip 2–5 and rejected it 3 of 3 times.
+- **Not verified:** a full job with the 7B model; the maintainer's review.
+
+## 2026-11-06 — Build 0.9.2: clip feedback, lessons and retry (not committed)
+
+- **Changes:** schema v5 (`lessons`; `jobs.redo_clip_id`, `redo_note`, `attempt`; `candidates.attempt`). Review form Feedback/Retry switches, Lessons tab with delete, "Attempt N" on clips. `DecideClip` upserts or deletes a clip's lesson; `CreateRedoJob` copies source, campaign and transcript and marks import/transcribe done. `HunterPrompt`/`ReviewPrompt` take lessons; `FixPrompt` asks for one clip that fixes a note, within 90 s of the original. `reviewStep` auto-retries rejected candidates while accepted < clip count (Settings → AI, 0–3, default 2). `.tabs` wraps at phone width. Built by a sonnet subagent, checked by the main session.
+- **Verified:** `gofmt -l .` empty, `go vet ./...`, `go test -race ./...`, `go mod verify`, staticcheck, `scripts/build-dev.sh` pass. New tests cover the v4→v5 migration, lesson upsert/delete, redo jobs, prompts with lessons, the fix window, auto-retry with a fake Ollama (accept on retry, give up after the limit, no retry when enough), the Review switches and the Lessons tab. Review, Lessons and Settings → AI checked in a browser at desktop and 375 px on a scratch data dir. `bin/Release` copied to `bin/Release-backup-2026-11-06-pre-v5` (its database is at schema v3).
+- **Not verified:** a real model run of a retry or auto-retry; the maintainer's review.
+
 ## 2026-11-06 — Build 0.9.2: staticcheck findings fixed (not committed)
 
 - **Changes:** CI's staticcheck step has failed since `64f802b`. Removed the unused `Server.mediaRoot`; the `..` media-root error no longer ends in punctuation (ST1005); a failure to create the default media folders at startup is now logged instead of dropped (SA4006).

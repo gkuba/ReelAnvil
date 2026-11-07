@@ -5,6 +5,10 @@ User-visible changes. Build and test records live in [`BUILD_HISTORY.md`](BUILD_
 ## Unreleased
 
 ### Build 0.9.2 (development)
+- Settings → AI "Pull a model" now shows this host's RAM, GPU vendor and whether Ollama runs on GPU or CPU, and a dropdown of Qwen 2.5 models (3B, 7B, 14B) labeled Recommended, Fits, Needs more RAM or Installed from the detected RAM. A **Download** button pulls the choice; "Other model" still pulls any name and wins when filled in. Download progress now updates in place instead of reloading the whole page every 3 seconds, so the screen no longer flashes; the page stays on the card after Download, and the hunter and reviewer lists pick up the new model when it finishes.
+- Review: **Feedback** and **Retry** switches beside the note. With Feedback on, an approved clip becomes a good example and a rejected one a lesson to avoid; later jobs use the newest 12 lessons. Retry on a reject (a note is required) queues a new job that remakes the clip from the note, shown as "Attempt N". A note with both switches off is kept for you only. A new **Lessons** tab lists lessons and deletes them.
+- The AI reviewer now scores each clip 1–10 on hook, completeness, standalone sense, interest and campaign fit, with a short reason each, and labels its parts. A clip is accepted only when every score reaches Settings → AI → "Lowest score to accept" (default 6); a weak clip is rejected and the lowest score becomes the automatic retry's note. Review cards show the scores, reasons and part times.
+- The AI reviewer retries clips it turns down when a job has too few accepted clips, using its own reason as the note. Settings → AI → "Automatic retries per clip" (0–3, default 2).
 - The web UI is served from embedded templates, one stylesheet and one script. Settings pages now match the Campaigns pages' headings, forms, cards and sidebar.
 - Stricter Content Security Policy: no inline scripts or styles.
 - Saving settings and Test connection now work from other machines on the LAN. The server sends `Referrer-Policy: same-origin` instead of `no-referrer`, which made browsers send `Origin: null` and the server reject the form.

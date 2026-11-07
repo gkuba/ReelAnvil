@@ -66,6 +66,12 @@ type Settings struct {
 	// Model roles (Settings > AI): installed Ollama model names, empty = unset.
 	HunterModel   string `json:"hunter_model"`
 	ReviewerModel string `json:"reviewer_model"`
+	// AutoRetries is how often the hunter retries a candidate the reviewer
+	// turned down, when the job still lacks accepted clips (0 to MaxAutoRetries).
+	AutoRetries int `json:"auto_retries"`
+	// MinReviewScore is the lowest score (1 to 10) every review criterion needs
+	// for the reviewer to accept a clip.
+	MinReviewScore int `json:"min_review_score"`
 	// Whisper model and language; the container reads them on `reelanvil upgrade`.
 	WhisperModel    string `json:"whisper_model"`
 	WhisperLanguage string `json:"whisper_language"`
@@ -106,13 +112,27 @@ type Server struct {
 	workerToken string
 }
 
+// Automatic retries per clip: the default, and the most the settings allow.
+const (
+	DefaultAutoRetries = 2
+	MaxAutoRetries     = 3
+)
+
+// The lowest review score a clip may have on any criterion: the default, and
+// the range the settings allow.
+const (
+	DefaultMinReviewScore = 6
+	MinMinReviewScore     = 1
+	MaxMinReviewScore     = 10
+)
+
 const settingsVersion = 5
 const configPath = "settings/config.json"
 
 func defaults() Settings {
 	return Settings{Version: settingsVersion, InstanceName: "ReelAnvil", Theme: defaultTheme, IconVariant: defaultIcon, ListenAddress: DefaultAddr,
 		OllamaAddress: DefaultOllamaAddr, WhisperAddress: DefaultWhisperAddr, MediaEngine: EnginePodman, FFmpegPath: DefaultFFmpegPath, YtDlpPath: DefaultYtDlpPath,
-		WhisperModel: DefaultWhisperModel, WhisperLanguage: DefaultWhisperLang}
+		WhisperModel: DefaultWhisperModel, WhisperLanguage: DefaultWhisperLang, AutoRetries: DefaultAutoRetries, MinReviewScore: DefaultMinReviewScore}
 }
 
 // file returns name inside the server's data directory.
@@ -134,9 +154,13 @@ func load(path string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
-	var c Settings
+	// Settings saved before auto_retries or min_review_score existed keep these defaults.
+	c := Settings{AutoRetries: DefaultAutoRetries, MinReviewScore: DefaultMinReviewScore}
 	if err = json.Unmarshal(b, &c); err != nil {
 		return c, err
+	}
+	if c.MinReviewScore == 0 { // 0 is not a legal score, so it means "not set"
+		c.MinReviewScore = DefaultMinReviewScore
 	}
 	if c.Version < 1 || c.Version > settingsVersion {
 		return c, fmt.Errorf("unsupported settings version %d", c.Version)
@@ -241,7 +265,7 @@ const exposedWarning = "WARNING: listening beyond loopback with no authenticatio
 
 // contentSecurityPolicy allows only same-origin scripts, styles and images.
 // Pages must not use inline <script>, <style> or style="" attributes.
-const contentSecurityPolicy = "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+const contentSecurityPolicy = "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 
 func localRequest(next http.Handler, hosts hostPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -374,6 +398,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/jobs/retry", s.jobAction(s.retryJob))
 	mux.HandleFunc("/review", s.reviewPage)
 	mux.HandleFunc("/review/decide", s.reviewAction(s.decideClip))
+	mux.HandleFunc("/review/lesson-delete", s.reviewAction(s.deleteLesson))
 	mux.HandleFunc("/review/post", s.reviewAction(s.addPost))
 	mux.HandleFunc("/review/post-update", s.reviewAction(s.updatePost))
 	mux.Handle("/assets/", staticHandler())

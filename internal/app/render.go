@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gkuba/ReelAnvil/internal/pipeline"
 	"github.com/gkuba/ReelAnvil/internal/store"
 )
 
@@ -36,9 +37,57 @@ func templateFuncs() template.FuncMap {
 		"bytes":         humanBytes,
 		"cents":         func(c int64) string { return store.FormatMoney(&c) },
 		"clock":         clockMS,
+		"scoreRows":     scoreRows,
+		"partRows":      partRows,
 		"elapsed":       elapsed,
 		"when":          when,
 	}
+}
+
+// scoreRow is one review criterion on a clip card.
+type scoreRow struct {
+	Label  string
+	Score  int
+	Reason string
+}
+
+// scoreRows reads the scores a review saved, in the reviewer's criteria
+// order. Clips reviewed before scores existed give none.
+func scoreRows(js string) []scoreRow {
+	var v struct {
+		Scores  map[string]int    `json:"scores"`
+		Reasons map[string]string `json:"reasons"`
+	}
+	if js == "" || json.Unmarshal([]byte(js), &v) != nil {
+		return nil
+	}
+	var out []scoreRow
+	for _, k := range pipeline.ReviewCriteria {
+		if n, ok := v.Scores[k]; ok {
+			out = append(out, scoreRow{strings.ToUpper(k[:1]) + k[1:], n, v.Reasons[k]})
+		}
+	}
+	return out
+}
+
+// partRow is where a labelled part of a clip starts, from the clip start.
+type partRow struct{ Label, At string }
+
+func partRows(js string) []partRow {
+	var v []struct {
+		Part string `json:"part"`
+		MS   int64  `json:"ms"`
+	}
+	if js == "" || json.Unmarshal([]byte(js), &v) != nil {
+		return nil
+	}
+	out := make([]partRow, 0, len(v))
+	for _, p := range v {
+		if p.Part != "" {
+			out = append(out, partRow{strings.ToUpper(p.Part[:1]) + p.Part[1:], clockMS(p.MS)})
+		}
+	}
+	return out
 }
 
 func parsePages(names ...string) map[string]*template.Template {

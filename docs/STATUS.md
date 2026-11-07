@@ -17,11 +17,31 @@
 - CLI: `serve`, `worker`, `doctor`, `version`, and the Debian 13 system installer (renders `compose.yaml` from the saved Whisper model, language and media root; creates the media folders; `doctor` checks the media root) `install [--service]`, `upgrade`, `doctor --repair [--clean]`, `uninstall` (user `reelanvil`, `/opt/ReelAnvil`, rootless Podman, port 4747; passed 5 clean install/uninstall loops on the reference host); `--data-dir`, `--addr` and `--allowed-hosts` flags (per-run overrides of the saved network settings).
 - Tests cover security guards, migrations, settings and theme recovery, campaign validation, rendering and CSP compliance. CI runs on GitHub Actions.
 
+## State of done (first release build)
+
+Set by the maintainer on 2026-11-06. The release build is done when:
+
+- **Hands-off pipeline.** The user picks a campaign and either drops media in `incoming/` or gives a URL, then presses Go. The software and models run everything up to Review with no one driving it, including automatic retries of rejected clips (capped per clip).
+- **Feedback that does something.** On Review, a **Feedback** switch turns an approved clip into a good example and a rejected one into a lesson to avoid; lessons feed later jobs. A **Retry** switch on a reject remakes the clip using the note. A note with both switches off is kept for the user only. The user stops a clip's retries by rejecting without Retry.
+- **Campaign platforms connected.** Campaigns from Content Rewards (Whop) and Vyro can be browsed in ReelAnvil through their public read APIs. Anything that needs a login (accepting a contract, submitting) is noted and decided after the first release build, in an extended test.
+- **The user approves and posts.** Nothing is published or submitted without the user.
+- A testable build in `bin/Release` for the maintainer's review.
+
 ## Next
 
-1. Maintainer review of the Media, Jobs and Review pages and the campaign post tracking.
-2. Better clip choices: the default small models often propose the wrong lengths; the hunter now keeps their opening line and fits the end to the length limits.
-3. Media Library page (sources and clips across jobs) and cleanup of `temp/` for finished jobs (only with confirmation).
+**Goal:** give ReelAnvil a URL or source file and get clips that are usable for a campaign. Clip quality comes first; campaign platform connections may be dropped.
+
+1. Maintainer review of the Feedback / Retry / Lessons build on the test host.
+2. Scores per criterion (hook, value, clarity, …) with reasons, plus hook / setup / body / outro labels, shown on Review. Prompt and page changes only.
+3. A manifest beside each rendered clip (source, times, crop, captions) so a render can be checked or redone.
+4. Word-by-word captions and a short title card over the first seconds (FFmpeg; check that the upstream image has libass).
+5. Blurred-background fill as an option instead of cropping to 9:16.
+6. Cut silences and filler words inside a clip (needs Whisper word timings).
+7. Re-transcribe the finished clip with a larger Whisper model for more accurate captions.
+8. A crop that follows the speaker. Face detection needs model weights, which can't be bundled; decide the approach first.
+9. Media Library page (sources and clips across jobs) and cleanup of `temp/` for finished jobs (only with confirmation).
+
+Ideas come from reading other open-source clippers; all code is our own (see `AGENTS.md`).
 
 ## Open items and release gates
 

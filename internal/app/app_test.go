@@ -22,7 +22,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
 	original := Settings{Version: 5, InstanceName: "Test", Theme: "aurora", IconVariant: "molten-orange", ThemeIcons: map[string]string{"aurora": "amethyst", "dracula-dark": "molten-orange", "custom": "amethyst"}, ListenAddress: "192.0.2.10:9000", AllowedHosts: []string{"reelanvil.lan"},
 		OllamaAddress: "192.0.2.20:11434", WhisperAddress: "whisper.lan:10300", MediaEngine: "host", FFmpegPath: "/usr/bin/ffmpeg", YtDlpPath: "yt-dlp",
-		HunterModel: "qwen2.5:3b", ReviewerModel: "llama3.2:3b", WhisperModel: "base", WhisperLanguage: "de", MediaRoot: "/srv/reel/media", StorageLimitGB: 200}
+		HunterModel: "qwen2.5:3b", ReviewerModel: "llama3.2:3b", WhisperModel: "base", WhisperLanguage: "de", MediaRoot: "/srv/reel/media", StorageLimitGB: 200, MinReviewScore: 8}
 	if err := save(p, original); err != nil {
 		t.Fatal(err)
 	}

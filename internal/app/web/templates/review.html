@@ -14,13 +14,25 @@
 <div class="metric">{{.Rejected}}</div>
 <small>Kept on disk, not used</small></div>
 </div>
-{{template "flash" .}}<div class="tabs" role="tablist" aria-label="Review views"><a role="tab" aria-selected="{{if eq .View "pending"}}true{{else}}false{{end}}" class="{{if eq .View "pending"}}active{{end}}" href="/review?view=pending">Pending ({{.Pending}})</a><a role="tab" aria-selected="{{if eq .View "approved"}}true{{else}}false{{end}}" class="{{if eq .View "approved"}}active{{end}}" href="/review?view=approved">Approved ({{.Approved}})</a><a role="tab" aria-selected="{{if eq .View "rejected"}}true{{else}}false{{end}}" class="{{if eq .View "rejected"}}active{{end}}" href="/review?view=rejected">Rejected ({{.Rejected}})</a></div>
-<div class="clip-grid">{{range .Clips}}{{$clip := .}}<div class="card"><video class="clip-video" controls preload="metadata" src="/media/clip/{{.ID}}/video"></video>
+{{template "flash" .}}<div class="tabs" role="tablist" aria-label="Review views"><a role="tab" aria-selected="{{if eq .View "pending"}}true{{else}}false{{end}}" class="{{if eq .View "pending"}}active{{end}}" href="/review?view=pending">Pending ({{.Pending}})</a><a role="tab" aria-selected="{{if eq .View "approved"}}true{{else}}false{{end}}" class="{{if eq .View "approved"}}active{{end}}" href="/review?view=approved">Approved ({{.Approved}})</a><a role="tab" aria-selected="{{if eq .View "rejected"}}true{{else}}false{{end}}" class="{{if eq .View "rejected"}}active{{end}}" href="/review?view=rejected">Rejected ({{.Rejected}})</a><a role="tab" aria-selected="{{if eq .View "lessons"}}true{{else}}false{{end}}" class="{{if eq .View "lessons"}}active{{end}}" href="/review?view=lessons">Lessons ({{len .Lessons}})</a></div>
+{{if eq .View "lessons"}}<p class="muted">What you taught the models. The newest 12 go into every hunt and review as short hints. Delete a lesson to stop using it.</p>
+<div class="clip-grid">{{range .Lessons}}<div class="card"><h2>{{if .Title}}{{.Title}}{{else}}Untitled clip{{end}}</h2>
+<p><span class="badge{{if eq .Kind "good"}} status{{end}}">{{if eq .Kind "good"}}Liked{{else}}To fix{{end}}</span> <small class="muted">{{when .CreatedAt}}</small></p>
+<p>{{if .Note}}{{.Note}}{{else}}<span class="muted">No note.</span>{{end}}</p>
+<form method="post" action="/review/lesson-delete"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="view" value="lessons"><div class="actions"><button class="secondary small" type="submit">Delete</button></div>
+</form>
+</div>
+{{else}}<div class="card"><p class="muted">No lessons yet. Turn on Feedback when you approve or reject a clip to teach the models.</p></div>
+{{end}}</div>
+{{else}}<div class="clip-grid">{{range .Clips}}{{$clip := .}}<div class="card"><video class="clip-video" controls preload="metadata" src="/media/clip/{{.ID}}/video"></video>
 <h2>{{.Title}}</h2>
 <p class="muted">{{.Hook}}</p>
-<p><small>Job <a class="link" href="/jobs?id={{.JobID}}">{{.JobID}} · {{.JobTitle}}</a> · {{clock .StartMS}}–{{clock .EndMS}} · {{clock .DurationMS}} · {{bytes .Size}}</small></p>
+<p><small>Job <a class="link" href="/jobs?id={{.JobID}}">{{.JobID}} · {{.JobTitle}}</a> · {{clock .StartMS}}–{{clock .EndMS}} · {{clock .DurationMS}} · {{bytes .Size}}{{if gt .Attempt 1}} · Attempt {{.Attempt}}{{end}}</small></p>
 <p><small>Campaign: {{if .CampaignTitle}}{{.CampaignTitle}}{{else}}none{{end}} · Captions {{.Captions}}</small></p>
-{{if .Reason}}<details><summary>Reviewer's reason</summary>
+{{with scoreRows .Scores}}<ul class="chips">{{range .}}<li class="chip">{{.Label}} {{.Score}}</li>{{end}}</ul>
+<ul class="score-reasons">{{range .}}{{if .Reason}}<li><small><strong>{{.Label}}</strong> {{.Reason}}</small></li>{{end}}{{end}}</ul>
+{{end}}{{with partRows .Parts}}<p class="parts"><small>{{range $i, $p := .}}{{if $i}} · {{end}}{{$p.At}} {{$p.Label}}{{end}}</small></p>
+{{end}}{{if .Reason}}<details><summary>Reviewer's reason</summary>
 <p><small>{{.Reason}}</small></p>
 </details>
 {{end}}<details><summary>Transcript</summary>
@@ -28,7 +40,10 @@
 </details>
 <div class="actions"><a class="btn secondary small" href="/media/clip/{{.ID}}/video?download=1">Download</a>{{if .SRTPath}}<a class="btn secondary small" href="/media/clip/{{.ID}}/srt">Captions .srt</a>{{end}}</div>
 <form method="post" action="/review/decide"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="view" value="{{$.View}}"><label for="note-{{.ID}}">Note (optional)</label>
-<input id="note-{{.ID}}" name="note" maxlength="8000" value="{{.Note}}"><div class="actions">{{if ne .Decision "approved"}}<button class="small" type="submit" name="decision" value="approved">Approve</button>{{end}}{{if ne .Decision "rejected"}}<button class="secondary small" type="submit" name="decision" value="rejected">Reject</button>{{end}}{{if ne .Decision "pending"}}<button class="secondary small" type="submit" name="decision" value="pending">Back to pending</button>{{end}}</div>
+<input id="note-{{.ID}}" name="note" maxlength="8000" value="{{.Note}}" aria-describedby="switch-help-{{.ID}}"><div class="switches"><label class="switch" for="feedback-{{.ID}}"><input id="feedback-{{.ID}}" type="checkbox" role="switch" name="feedback" value="1"><span class="track" aria-hidden="true"></span>Feedback</label>
+<label class="switch" for="retry-{{.ID}}"><input id="retry-{{.ID}}" type="checkbox" role="switch" name="retry" value="1"><span class="track" aria-hidden="true"></span>Retry</label></div>
+<p id="switch-help-{{.ID}}" class="muted"><small><strong>Feedback</strong> — Teach the model: approved clips become good examples, rejected ones become things to fix.<br><strong>Retry</strong> — Reject and try again using your note.</small></p>
+<div class="actions">{{if ne .Decision "approved"}}<button class="small" type="submit" name="decision" value="approved">Approve</button>{{end}}{{if ne .Decision "rejected"}}<button class="secondary small" type="submit" name="decision" value="rejected">Reject</button>{{end}}{{if ne .Decision "pending"}}<button class="secondary small" type="submit" name="decision" value="pending">Back to pending</button>{{end}}</div>
 </form>
 {{if eq .Decision "approved"}}{{range .Submissions}}<details><summary>Post: {{.Status}}{{if .Views}} · {{.Views}} views{{end}}{{if .EarningsCents}} · {{money .EarningsCents}}{{end}}</summary>
 <p><a class="external wrap" href="{{.PostURL}}" rel="noopener noreferrer" target="_blank">{{.PostURL}}</a></p>
@@ -59,4 +74,5 @@
 {{end}}{{end}}</div>
 {{else}}<div class="card"><p class="muted">No {{.View}} clips. Finished jobs put their clips here once they pass the checks.</p></div>
 {{end}}</div>
+{{end}}
 {{end}}
