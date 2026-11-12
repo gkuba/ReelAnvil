@@ -232,6 +232,12 @@ func (w *Worker) do(ctx context.Context, op Op, progress progressFunc) (any, err
 			return nil, err
 		}
 		return w.audio(ctx, a, progress)
+	case "silences":
+		var a SilenceArgs
+		if err := json.Unmarshal(op.Args, &a); err != nil {
+			return nil, err
+		}
+		return w.silences(ctx, a)
 	case "render":
 		var a RenderArgs
 		if err := json.Unmarshal(op.Args, &a); err != nil {

@@ -10,7 +10,7 @@
 2. **Transcribe** it with faster-whisper.
 3. **Hunt** for clips with a local Ollama model, then check where each answer really ends.
 4. **Review** each pick with a second model that scores hook, completeness, standalone sense, interest and fit, and never sees the hunter's reasoning.
-5. **Render** 9:16 clips with FFmpeg (blurred-background fill, burned captions, a `.srt` and a `.json` manifest beside each clip).
+5. **Render** 9:16 clips with FFmpeg: blurred-background fill, long pauses and filler-only lines cut, three-word captions burned in, the title over the first seconds, and a `.srt` and a `.json` manifest beside each clip. Each part can be switched off in Settings → Media.
 6. **Approve** on the Review page: play the clip in the browser, download it, approve or reject it. Notes can become lessons for later jobs, or trigger a retry.
 
 Progress is real: stages, counts, elapsed time and logs. There are no time estimates. Storage limits block a job instead of deleting anything. Campaign tracking is unfinished and hidden until you switch on **Settings → General → Developer features**.

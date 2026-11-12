@@ -49,12 +49,27 @@ type (
 	AudioResult struct {
 		Silences []Silence `json:"silences"`
 	}
-	RenderArgs struct {
+	// SilenceArgs scans In from StartMS to EndMS; the result is in source time.
+	SilenceArgs struct {
 		In      string `json:"in"`
-		Out     string `json:"out"`
-		SRT     string `json:"srt"`
 		StartMS int64  `json:"start_ms"`
 		EndMS   int64  `json:"end_ms"`
+	}
+	// Range is a part of the clip to keep, in milliseconds from the clip's start.
+	Range struct {
+		StartMS int64 `json:"start_ms"`
+		EndMS   int64 `json:"end_ms"`
+	}
+	RenderArgs struct {
+		In  string `json:"in"`
+		Out string `json:"out"`
+		SRT string `json:"srt"`
+		// ASS, when set, is burned instead of the SRT (the SRT stays a sidecar).
+		ASS     string `json:"ass,omitempty"`
+		StartMS int64  `json:"start_ms"`
+		EndMS   int64  `json:"end_ms"`
+		// Keep lists the parts to join, relative to StartMS. Empty keeps it all.
+		Keep []Range `json:"keep,omitempty"`
 	}
 	RenderResult struct {
 		Captions string `json:"captions"` // burned or sidecar
@@ -347,6 +362,42 @@ func (w *Worker) audio(ctx context.Context, a AudioArgs, progress progressFunc) 
 	return res, nil
 }
 
+// MaxKeepRanges bounds how many pieces a clip is joined from.
+const MaxKeepRanges = 60
+
+// silences finds pauses inside one part of a source, for cutting.
+func (w *Worker) silences(ctx context.Context, a SilenceArgs) (AudioResult, error) {
+	var res AudioResult
+	if err := w.checkInput(a.In); err != nil {
+		return res, err
+	}
+	if a.EndMS <= a.StartMS {
+		return res, fmt.Errorf("empty range")
+	}
+	args := []string{"-nostdin", "-hide_banner", "-nostats", "-ss", ms(a.StartMS), "-t", ms(a.EndMS - a.StartMS), "-i", a.In,
+		"-vn", "-af", "silencedetect=noise=-32dB:d=0.6", "-f", "null", "-"}
+	open := int64(-1)
+	err := w.run(ctx, "ffmpeg", args, a.In, nil, func(line string) {
+		if i := strings.Index(line, "silence_start: "); i >= 0 {
+			if v, err := strconv.ParseFloat(strings.Fields(line[i+15:])[0], 64); err == nil {
+				open = a.StartMS + int64(v*1000)
+			}
+		} else if i := strings.Index(line, "silence_end: "); i >= 0 && open >= 0 {
+			if v, err := strconv.ParseFloat(strings.Fields(line[i+13:])[0], 64); err == nil {
+				res.Silences = append(res.Silences, Silence{open, a.StartMS + int64(v*1000)})
+				open = -1
+			}
+		}
+	})
+	if err != nil {
+		return res, err
+	}
+	if open >= 0 {
+		res.Silences = append(res.Silences, Silence{open, a.EndMS})
+	}
+	return res, nil
+}
+
 // filterSafe rejects characters that would need FFmpeg filter escaping.
 func filterSafe(p string) bool { return !strings.ContainsAny(p, "'\\:,;[]=") }
 
@@ -366,6 +417,11 @@ func (w *Worker) render(ctx context.Context, a RenderArgs, progress progressFunc
 	if err := w.checkInput(a.SRT); err != nil {
 		return res, err
 	}
+	if a.ASS != "" {
+		if err := w.checkInput(a.ASS); err != nil {
+			return res, err
+		}
+	}
 	if err := w.checkOutput(a.Out); err != nil {
 		return res, err
 	}
@@ -373,15 +429,46 @@ func (w *Worker) render(ctx context.Context, a RenderArgs, progress progressFunc
 		return res, fmt.Errorf("empty clip")
 	}
 	dur := a.EndMS - a.StartMS
-	graph := VerticalFilter
+	var graph, audio string
+	vertical := VerticalFilter
+	if n := len(a.Keep); n > 0 {
+		if n > MaxKeepRanges {
+			return res, fmt.Errorf("too many pieces to join")
+		}
+		var sb strings.Builder
+		var pads strings.Builder
+		dur = 0
+		for i, k := range a.Keep {
+			if k.StartMS < 0 || k.EndMS <= k.StartMS || k.EndMS > a.EndMS-a.StartMS {
+				return res, fmt.Errorf("bad piece %d", i+1)
+			}
+			dur += k.EndMS - k.StartMS
+			fmt.Fprintf(&sb, "[0:v]trim=start=%s:end=%s,setpts=PTS-STARTPTS[v%d];[0:a]atrim=start=%s:end=%s,asetpts=PTS-STARTPTS[a%d];",
+				ms(k.StartMS), ms(k.EndMS), i, ms(k.StartMS), ms(k.EndMS), i)
+			fmt.Fprintf(&pads, "[v%d][a%d]", i, i)
+		}
+		graph = sb.String() + pads.String() + fmt.Sprintf("concat=n=%d:v=1:a=1[cv][ca];", n)
+		vertical = strings.Replace(vertical, "[0:v]", "[cv]", 1)
+		audio = "[ca]"
+	}
+	graph += vertical
 	if fonts := w.prepareFonts(); fonts != "" && filterSafe(a.SRT) && filterSafe(fonts) {
-		graph += fmt.Sprintf(",subtitles=filename='%s':fontsdir='%s':force_style='%s'", a.SRT, fonts, CaptionStyle)
-		res.Captions = "burned"
+		switch {
+		case a.ASS != "" && filterSafe(a.ASS):
+			graph += fmt.Sprintf(",subtitles=filename='%s':fontsdir='%s'", a.ASS, fonts)
+			res.Captions = "burned"
+		case a.ASS == "":
+			graph += fmt.Sprintf(",subtitles=filename='%s':fontsdir='%s':force_style='%s'", a.SRT, fonts, CaptionStyle)
+			res.Captions = "burned"
+		}
 	}
 	graph += "[v]"
+	if audio == "" {
+		audio = "0:a:0?"
+	}
 	args := []string{"-nostdin", "-hide_banner", "-nostats", "-y",
-		"-ss", ms(a.StartMS), "-t", ms(dur), "-i", a.In,
-		"-filter_complex", graph, "-map", "[v]", "-map", "0:a:0?",
+		"-ss", ms(a.StartMS), "-t", ms(a.EndMS - a.StartMS), "-i", a.In,
+		"-filter_complex", graph, "-map", "[v]", "-map", audio,
 		"-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "128k",
 		"-movflags", "+faststart", "-progress", "pipe:1", a.Out}
 	err := w.run(ctx, "ffmpeg", args, a.Out, func(line string) {

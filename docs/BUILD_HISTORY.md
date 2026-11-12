@@ -2,6 +2,12 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-11-12 — Build 0.9.2: pause and filler cutting, three-word captions, title card
+
+- **Changes:** `pipeline/clipedit.go` (WordCues, FillerSpans, KeepSpans, Remap, CuesSRT, ASS); worker op `silences` and render with `keep` pieces and an ASS file; `renderClip` in the job with a whole-clip fallback; manifest `expected_ms` used by QA; Settings → Media → Clip rendering (`trim_silences`, `word_captions`, `title_card`, default on).
+- **Verified:** gofmt, vet, `go test -race ./...` including a real-FFmpeg worker test (silence found, two tones joined to 4.4 s, bad piece rejected).
+- **Not verified:** the look of the burned captions and title card on a real clip.
+
 ## 2026-11-12 — Build 0.9.2: release readiness (not committed until pushed below)
 
 - **Changes:** digest pins (`compose.yaml.tmpl`, `pin_test.go`); `scripts/package-release.sh`, `check-release.sh`, `scan-secrets.sh` and CI steps; notices audit; README install guide; `themes_recovery_test.go` (8 tests); copy cleanup (footers, top bar, no-login wording).

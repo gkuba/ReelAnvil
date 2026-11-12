@@ -29,21 +29,13 @@ Set by the maintainer on 2026-11-06. The release build is done when:
 
 ## Next
 
-Done 2026-11-12: per-clip end-of-answer check, clip manifests, Campaigns behind Settings → General → Developer features (off by default). Still to verify: the end check with a real model on the test host.
+**Goal:** give ReelAnvil a URL or source file and get clips that are usable for a campaign. Done so far: hands-off pipeline, scores and feedback, end-of-answer check, manifests, pause and filler cutting, three-word captions, title card, blurred fill (see `CHANGELOG.md`).
 
-**Goal:** give ReelAnvil a URL or source file and get clips that are usable for a campaign. Clip quality comes first; campaign platform connections may be dropped.
-
-1. Maintainer review of the Feedback / Retry / Lessons build on the test host.
-2. Scores per criterion (hook, value, clarity, …) with reasons, plus hook / setup / body / outro labels, shown on Review. Prompt and page changes only.
-3. A manifest beside each rendered clip (source, times, crop, captions) so a render can be checked or redone.
-4. Word-by-word captions and a short title card over the first seconds (FFmpeg; check that the upstream image has libass).
-5. Blurred-background fill as an option instead of cropping to 9:16.
-6. Cut silences and filler words inside a clip (needs Whisper word timings).
-7. Re-transcribe the finished clip with a larger Whisper model for more accurate captions.
-8. A crop that follows the speaker. Face detection needs model weights, which can't be bundled; decide the approach first.
-9. Media Library page (sources and clips across jobs) and cleanup of `temp/` for finished jobs (only with confirmation).
-
-Ideas come from reading other open-source clippers; all code is our own (see `AGENTS.md`).
+Still open, all after the first release:
+1. Exact word times and cutting fillers inside sentences: needs a transcription service that returns word timestamps.
+2. Re-transcribe the finished clip with a larger Whisper model for more accurate captions.
+3. A crop that follows the speaker. Face detection needs model weights, which can't be bundled; decide the approach first.
+4. Media Library page (sources and clips across jobs) and `temp/` cleanup for finished jobs (only with confirmation).
 
 ## Release state (2026-11-12)
 

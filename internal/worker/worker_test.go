@@ -110,6 +110,22 @@ func TestProbeAudioRender(t *testing.T) {
 	if v.Width != 1080 || v.Height != 1920 || v.DurationMS < 2900 || v.DurationMS > 3200 || !v.HasAudio {
 		t.Fatalf("render probe = %+v", v)
 	}
+	// Silence scan of the whole source, then a render that joins the two tones.
+	sil := op("silences", SilenceArgs{In: src, StartMS: 0, EndMS: 6000}).(AudioResult)
+	if len(sil.Silences) != 1 || sil.Silences[0].StartMS < 1800 || sil.Silences[0].EndMS > 4200 {
+		t.Fatalf("silences op = %+v", sil.Silences)
+	}
+	ass := filepath.Join(root, "temp", "1", "clip.ass")
+	_ = os.WriteFile(ass, []byte("[Script Info]\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Alignment, MarginV\nStyle: Default,Arial,80,&H00FFFFFF,&H00000000,&H00000000,1,2,400\n\n[Events]\nFormat: Layer, Start, End, Style, Text\nDialogue: 0,0:00:00.00,0:00:01.50,Default,Hello\n"), 0640)
+	cut := filepath.Join(root, "temp", "1", "cut.mp4")
+	op("render", RenderArgs{In: src, Out: cut, SRT: srt, ASS: ass, StartMS: 0, EndMS: 6000, Keep: []Range{{0, 2200}, {3800, 6000}}})
+	c := op("probe", ProbeArgs{Path: cut}).(ProbeResult)
+	if c.Width != 1080 || c.Height != 1920 || c.DurationMS < 4200 || c.DurationMS > 4700 || !c.HasAudio {
+		t.Fatalf("cut probe = %+v", c)
+	}
+	if _, err := w.do(ctx, Op{Kind: "render", Args: []byte(`{"in":"` + src + `","out":"` + cut + `","srt":"` + srt + `","start_ms":0,"end_ms":6000,"keep":[{"start_ms":0,"end_ms":9000}]}`)}, nil); err == nil {
+		t.Fatal("piece outside the clip accepted")
+	}
 	if _, err := w.do(ctx, Op{Kind: "shell", Args: []byte("{}")}, nil); err == nil || !strings.Contains(err.Error(), "unknown") {
 		t.Fatalf("unknown kind: %v", err)
 	}

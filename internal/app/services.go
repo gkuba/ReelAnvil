@@ -389,7 +389,12 @@ func (s *Server) mediaSettings(w http.ResponseWriter, r *http.Request) {
 		if err := applyServiceForm(&c, r); err != nil {
 			return nil, err
 		}
+		render := r.Form.Has("render_present")
+		trim, words, title := r.FormValue("trim_silences") == "on", r.FormValue("word_captions") == "on", r.FormValue("title_card") == "on"
 		return func(next *Settings) {
+			if render {
+				next.TrimSilences, next.WordCaptions, next.TitleCard = trim, words, title
+			}
 			next.MediaEngine = c.MediaEngine
 			if c.FFmpegPath != "" {
 				next.FFmpegPath = c.FFmpegPath

@@ -74,6 +74,12 @@ type Settings struct {
 	// MinReviewScore is the lowest score (1 to 10) every review criterion needs
 	// for the reviewer to accept a clip.
 	MinReviewScore int `json:"min_review_score"`
+	// Rendering (Settings > Media): cut long pauses and filler-only lines,
+	// show captions three words at a time, put the title over the first seconds.
+	// All default to on, including for settings saved before they existed.
+	TrimSilences bool `json:"trim_silences"`
+	WordCaptions bool `json:"word_captions"`
+	TitleCard    bool `json:"title_card"`
 	// Whisper model and language; the container reads them on `reelanvil upgrade`.
 	WhisperModel    string `json:"whisper_model"`
 	WhisperLanguage string `json:"whisper_language"`
@@ -134,7 +140,8 @@ const configPath = "settings/config.json"
 func defaults() Settings {
 	return Settings{Version: settingsVersion, InstanceName: "ReelAnvil", Theme: defaultTheme, IconVariant: defaultIcon, ListenAddress: DefaultAddr,
 		OllamaAddress: DefaultOllamaAddr, WhisperAddress: DefaultWhisperAddr, MediaEngine: EnginePodman, FFmpegPath: DefaultFFmpegPath, YtDlpPath: DefaultYtDlpPath,
-		WhisperModel: DefaultWhisperModel, WhisperLanguage: DefaultWhisperLang, AutoRetries: DefaultAutoRetries, MinReviewScore: DefaultMinReviewScore}
+		WhisperModel: DefaultWhisperModel, WhisperLanguage: DefaultWhisperLang, AutoRetries: DefaultAutoRetries, MinReviewScore: DefaultMinReviewScore,
+		TrimSilences: true, WordCaptions: true, TitleCard: true}
 }
 
 // file returns name inside the server's data directory.
@@ -157,7 +164,7 @@ func load(path string) (Settings, error) {
 		return Settings{}, err
 	}
 	// Settings saved before auto_retries or min_review_score existed keep these defaults.
-	c := Settings{AutoRetries: DefaultAutoRetries, MinReviewScore: DefaultMinReviewScore}
+	c := Settings{AutoRetries: DefaultAutoRetries, MinReviewScore: DefaultMinReviewScore, TrimSilences: true, WordCaptions: true, TitleCard: true}
 	if err = json.Unmarshal(b, &c); err != nil {
 		return c, err
 	}

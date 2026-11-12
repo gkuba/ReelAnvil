@@ -902,27 +902,28 @@ func (r *run) renderStep() error {
 	for i, c := range pick {
 		_ = r.s.store.SetJobDetail(context.Background(), r.job.ID, fmt.Sprintf("Clip %d of %d", i+1, len(pick)))
 		name := fmt.Sprintf("clip-%d-%s", i+1, pipeline.SafeName(c.Title))
-		srt, out := r.temp(name+".srt"), r.temp(name+".mp4")
+		srt, ass, out := r.temp(name+".srt"), r.temp(name+".ass"), r.temp(name+".mp4")
 		if err := os.MkdirAll(filepath.Dir(srt), folderMode); err != nil {
 			return err
 		}
-		if err := os.WriteFile(srt, []byte(pipeline.SRT(segs, pipeline.Span{StartMS: c.StartMS, EndMS: c.EndMS})), 0o640); err != nil {
-			return err
+		res, ed, err := r.renderClip(in, out, srt, ass, segs, c, true)
+		if err != nil && len(ed.keep) > 1 {
+			r.logf("Clip %d could not be joined (%v); rendering it whole", i+1, err)
+			res, ed, err = r.renderClip(in, out, srt, ass, segs, c, false)
 		}
-		var res worker.RenderResult
-		if err := r.op("render", worker.RenderArgs{In: in, Out: out, SRT: srt, StartMS: c.StartMS, EndMS: c.EndMS}, &res); err != nil {
+		if err != nil {
 			return fmt.Errorf("render clip %d: %w", i+1, err)
 		}
 		if res.Captions == "burned" {
 			burned++
 		}
-		if err := writeManifest(out, src, c, res.Captions); err != nil {
+		if err := writeManifest(out, src, c, res.Captions, ed); err != nil {
 			return err
 		}
 		if _, err := r.s.store.AddClip(context.Background(), store.Clip{JobID: r.job.ID, CandidateID: c.ID, Path: r.rel(out), SRTPath: r.rel(srt), Captions: res.Captions}); err != nil {
 			return err
 		}
-		r.logf("Rendered %s (%s, captions %s)", name, pipeline.Clock(c.EndMS-c.StartMS), res.Captions)
+		r.logf("Rendered %s (%s, captions %s%s)", name, pipeline.Clock(ed.length), res.Captions, ed.note())
 	}
 	_ = r.s.store.SetJobDetail(context.Background(), r.job.ID, "")
 	if burned < len(pick) {
@@ -950,6 +951,12 @@ func (r *run) qaStep() error {
 			problems = append(problems, "could not be read: "+err.Error())
 		} else {
 			want := c.EndMS - c.StartMS
+			if m, err := os.ReadFile(strings.TrimSuffix(path, ".mp4") + ".json"); err == nil {
+				var mf clipManifest
+				if json.Unmarshal(m, &mf) == nil && mf.ExpectedMS > 0 {
+					want = mf.ExpectedMS
+				}
+			}
 			if p.Width != 1080 || p.Height != 1920 {
 				problems = append(problems, fmt.Sprintf("size is %dx%d, not 1080x1920", p.Width, p.Height))
 			}
@@ -1000,6 +1007,73 @@ func (r *run) qaStep() error {
 	return nil
 }
 
+// edit is what was done to one clip beyond cutting it from the source.
+type edit struct {
+	keep   []pipeline.Span // source time kept
+	length int64           // length of the finished clip
+	title  bool
+	words  bool
+}
+
+func (e edit) note() string {
+	if len(e.keep) > 1 {
+		return fmt.Sprintf(", %d pieces joined", len(e.keep))
+	}
+	return ""
+}
+
+// renderClip makes one clip with the Settings > Media options: long pauses and
+// filler-only lines cut, captions three words at a time, a title card. With
+// trim false it renders the clip whole.
+func (r *run) renderClip(in, out, srt, ass string, segs []pipeline.Segment, c store.Candidate, trim bool) (worker.RenderResult, edit, error) {
+	r.s.mu.Lock()
+	cfg := r.s.cfg
+	r.s.mu.Unlock()
+	span := pipeline.Span{StartMS: c.StartMS, EndMS: c.EndMS}
+	keep := []pipeline.Span{span}
+	if trim && cfg.TrimSilences {
+		var sil worker.AudioResult
+		if err := r.op("silences", worker.SilenceArgs{In: in, StartMS: c.StartMS, EndMS: c.EndMS}, &sil); err != nil {
+			r.logf("Pause detection skipped: %v", err)
+		} else {
+			spans := make([]pipeline.Span, len(sil.Silences))
+			for i, s := range sil.Silences {
+				spans[i] = pipeline.Span{StartMS: s.StartMS, EndMS: s.EndMS}
+			}
+			keep = pipeline.KeepSpans(span, spans, pipeline.FillerSpans(segs))
+		}
+	}
+	if len(keep) > worker.MaxKeepRanges {
+		keep = []pipeline.Span{span}
+	}
+	per := pipeline.CaptionWords
+	if cfg.WordCaptions {
+		per = pipeline.WordsPerCue
+	}
+	cues := pipeline.WordCues(segs, span, per)
+	title := ""
+	if cfg.TitleCard {
+		title = c.Title
+	}
+	ed := edit{keep: keep, length: pipeline.Total(keep), title: title != "", words: cfg.WordCaptions}
+	// The .srt sidecar uses sentence-length cues in the finished clip's time.
+	if err := os.WriteFile(srt, []byte(pipeline.CuesSRT(pipeline.WordCues(segs, span, pipeline.CaptionWords), keep)), 0o640); err != nil {
+		return worker.RenderResult{}, ed, err
+	}
+	if err := os.WriteFile(ass, []byte(pipeline.ASS(cues, title, keep)), 0o640); err != nil {
+		return worker.RenderResult{}, ed, err
+	}
+	args := worker.RenderArgs{In: in, Out: out, SRT: srt, ASS: ass, StartMS: c.StartMS, EndMS: c.EndMS}
+	if len(keep) > 1 || keep[0] != span {
+		for _, k := range keep {
+			args.Keep = append(args.Keep, worker.Range{StartMS: k.StartMS - c.StartMS, EndMS: k.EndMS - c.StartMS})
+		}
+	}
+	var res worker.RenderResult
+	err := r.op("render", args, &res)
+	return res, ed, err
+}
+
 // clipManifest sits beside each rendered clip so a render can be checked or
 // redone: where it came from, which part, and how it was made.
 type clipManifest struct {
@@ -1013,11 +1087,17 @@ type clipManifest struct {
 	Crop     string `json:"crop"`
 	Captions string `json:"captions"`
 	Output   string `json:"output"`
+	// ExpectedMS is the finished clip's length; QA compares against it.
+	ExpectedMS  int64 `json:"expected_ms"`
+	Pieces      int   `json:"pieces"`
+	TitleCard   bool  `json:"title_card"`
+	WordCaption bool  `json:"word_captions"`
 }
 
-func writeManifest(out string, src store.Source, c store.Candidate, captions string) error {
+func writeManifest(out string, src store.Source, c store.Candidate, captions string, ed edit) error {
 	m := clipManifest{Source: src.Path, StartMS: c.StartMS, EndMS: c.EndMS, Title: c.Title, Hook: c.Hook,
-		Model: c.Model, Attempt: c.Attempt, Crop: "9:16 blurred background", Captions: captions, Output: filepath.Base(out)}
+		Model: c.Model, Attempt: c.Attempt, Crop: "9:16 blurred background", Captions: captions, Output: filepath.Base(out),
+		ExpectedMS: ed.length, Pieces: len(ed.keep), TitleCard: ed.title, WordCaption: ed.words}
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err

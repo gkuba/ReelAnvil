@@ -24,5 +24,17 @@
 </div>
 </form>
 </div>
+<div class="card narrow-fields">
+<h2>Clip rendering</h2>
+<form method="post" action="/settings/media">
+<input type="hidden" name="media_engine" value="{{.Config.MediaEngine}}">
+<input type="hidden" name="render_present" value="1">
+<label><input type="checkbox" name="trim_silences"{{if .Config.TrimSilences}} checked{{end}}> Cut long pauses and filler-only lines ("Um.")</label>
+<label><input type="checkbox" name="word_captions"{{if .Config.WordCaptions}} checked{{end}}> Show captions three words at a time</label>
+<label><input type="checkbox" name="title_card"{{if .Config.TitleCard}} checked{{end}}> Show the clip title over the first seconds</label>
+<p class="muted">Pauses of 0.7 s or more are shortened to 0.4 s. Word timing is estimated from each transcript line, so it is close, not exact. Applies to clips rendered after you save.</p>
+<div class="actions end"><button type="submit"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v7h10V3M7 21v-8h10v8"/></svg>Save Rendering</button></div>
+</form>
+</div>
 <footer>ReelAnvil · For trusted networks only · No login</footer>
 {{end}}
