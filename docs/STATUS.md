@@ -1,6 +1,6 @@
 # ReelAnvil — Project Status
 
-**Last updated:** 2026-11-06
+**Last updated:** 2026-11-12
 **Current build:** 0.9.2-dev, local development prototype on `dev`. Not a release.
 **Repository:** `git@github.com:gkuba/ReelAnvil.git` — `dev` for development, `main` for squashed releases/checkpoints.
 **Run it:** `cd bin/Release && ./reelanvil serve`, then open <http://127.0.0.1:4747>.
@@ -28,6 +28,8 @@ Set by the maintainer on 2026-11-06. The release build is done when:
 - A testable build in `bin/Release` for the maintainer's review.
 
 ## Next
+
+Done 2026-11-12: per-clip end-of-answer check, clip manifests, Campaigns behind Settings → General → Developer features (off by default). Still to verify: the end check with a real model on the test host.
 
 **Goal:** give ReelAnvil a URL or source file and get clips that are usable for a campaign. Clip quality comes first; campaign platform connections may be dropped.
 
