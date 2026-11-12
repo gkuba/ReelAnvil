@@ -6,7 +6,8 @@ One maintained record of what was built, how it was checked, and where it landed
 
 - **Changes:** `pipeline.EndPrompt/ParseEnd/EndLimit` and `run.checkEnd` in the hunt step; `writeManifest` in the render step; `Settings.DevFeatures` with `devOnly` route gating, sidebar/media/review/jobs template guards and a pipeline Overview.
 - **Verified:** gofmt, vet and `go test -race ./...` pass, including new tests for the end parser, the manifest and the hidden Campaigns area.
-- **Not verified:** the end check against a real model on pixelreel; browser check at desktop and phone width (see the entry that follows if done).
+- **Deployed and tested on pixelreel (build 7e537f8):** job 5 (STS-135 FD7, 3 × 20–60 s, qwen2.5:14b) finished in 18m55s: 6 candidates, 3 accepted, 3 rendered with manifests, QA 3 of 3. The end check ran per pick and moved two ends (lines 16-18 and 97-100 to 101); the other picks kept their cut. Clip endings not yet judged by the maintainer.
+- **Not verified:** browser check at phone width.
 
 ## 2026-11-07 — Build 0.9.2: pull card updates in place (not committed)
 
