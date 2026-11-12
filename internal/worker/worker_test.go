@@ -139,3 +139,14 @@ func TestIconFontsAreNotCaptionFonts(t *testing.T) {
 		}
 	}
 }
+
+func TestFontConfPointsAtTheFolder(t *testing.T) {
+	dir := t.TempDir()
+	if err := writeFontConf(dir); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "fonts.conf"))
+	if err != nil || !strings.Contains(string(b), "<dir>"+dir+"</dir>") {
+		t.Fatalf("fonts.conf: %q, %v", b, err)
+	}
+}

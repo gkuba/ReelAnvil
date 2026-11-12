@@ -325,6 +325,11 @@ func (w *Worker) prepareFonts() string {
 	}
 	copied := copyFonts(dir, []string{"/usr/share/fonts", "/usr/local/share/fonts"})
 	w.cfg.Log.Printf("copied %d font files to %s", copied, dir)
+	if copied > 0 {
+		if err := writeFontConf(dir); err != nil {
+			w.cfg.Log.Printf("fontconfig file: %v", err)
+		}
+	}
 	if fontCount(dir) > 0 {
 		w.fontsDir = dir
 	} else {
@@ -336,6 +341,24 @@ func (w *Worker) prepareFonts() string {
 func isFont(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
 	return ext == ".ttf" || ext == ".otf"
+}
+
+// writeFontConf writes the fontconfig file that points libass at dir. The
+// media container ships no fontconfig setup, so FFmpeg is given this one.
+func writeFontConf(dir string) error {
+	conf := `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+<dir>` + dir + `</dir>
+<cachedir>/tmp/reelanvil-fontcache</cachedir>
+</fontconfig>
+`
+	return os.WriteFile(filepath.Join(dir, "fonts.conf"), []byte(conf), 0o640)
+}
+
+func fileExists(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.Mode().IsRegular()
 }
 
 // iconFont reports fonts made of symbols, which cannot show captions.

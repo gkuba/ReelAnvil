@@ -76,6 +76,16 @@ type (
 	}
 )
 
+// fontConfKey carries the fontconfig file a tool should use through the
+// context. The media container has no fontconfig setup of its own, so without
+// it libass cannot use any font and burned captions come out blank.
+type fontConfKey struct{}
+
+func fontConf(ctx context.Context) string {
+	v, _ := ctx.Value(fontConfKey{}).(string)
+	return v
+}
+
 // executor builds the command line for one tool.
 type executor interface {
 	command(ctx context.Context, tool string, args ...string) (*exec.Cmd, error)
@@ -97,7 +107,11 @@ func (h hostExec) command(ctx context.Context, tool string, args ...string) (*ex
 	if bin == "" {
 		return nil, fmt.Errorf("unknown tool %s", tool)
 	}
-	return exec.CommandContext(ctx, bin, args...), nil
+	cmd := exec.CommandContext(ctx, bin, args...)
+	if f := fontConf(ctx); f != "" {
+		cmd.Env = append(os.Environ(), "FONTCONFIG_FILE="+f)
+	}
+	return cmd, nil
 }
 
 func (hostExec) stop(string) {}
@@ -136,7 +150,11 @@ func (c *containerExec) command(ctx context.Context, tool string, args ...string
 	if err != nil {
 		return nil, err
 	}
-	return exec.CommandContext(ctx, c.engine, append([]string{"exec", name, tool}, args...)...), nil
+	pre := []string{"exec"}
+	if f := fontConf(ctx); f != "" {
+		pre = append(pre, "-e", "FONTCONFIG_FILE="+f)
+	}
+	return exec.CommandContext(ctx, c.engine, append(append(pre, name, tool), args...)...), nil
 }
 
 // stop kills the tool inside the container: killing the exec client does not.
@@ -452,7 +470,11 @@ func (w *Worker) render(ctx context.Context, a RenderArgs, progress progressFunc
 		audio = "[ca]"
 	}
 	graph += vertical
-	if fonts := w.prepareFonts(); fonts != "" && filterSafe(a.SRT) && filterSafe(fonts) {
+	fonts := w.prepareFonts()
+	if conf := filepath.Join(fonts, "fonts.conf"); fonts != "" && fileExists(conf) {
+		ctx = context.WithValue(ctx, fontConfKey{}, conf)
+	}
+	if fonts != "" && filterSafe(a.SRT) && filterSafe(fonts) {
 		switch {
 		case a.ASS != "" && filterSafe(a.ASS):
 			graph += fmt.Sprintf(",subtitles=filename='%s':fontsdir='%s'", a.ASS, fonts)
