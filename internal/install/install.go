@@ -41,7 +41,8 @@ const (
 //go:embed assets/*.tmpl
 var assets embed.FS
 
-var podmanPackages = []string{"podman", "podman-compose"}
+// fonts-dejavu-core gives the media container a text font for burned captions.
+var podmanPackages = []string{"podman", "podman-compose", "fonts-dejavu-core"}
 
 // packageName guards the purge list read back from the state file.
 var packageName = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]*$`)

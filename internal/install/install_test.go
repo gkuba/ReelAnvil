@@ -43,7 +43,7 @@ func (f *fakeRun) Run(c Cmd) (string, error) {
 		return b.String(), nil
 	case "apt-get":
 		if c.Args[0] == "install" {
-			for _, p := range []string{"podman", "podman-compose", "conmon", "crun"} {
+			for _, p := range []string{"podman", "podman-compose", "conmon", "crun", "fonts-dejavu-core"} {
 				f.pkgs[p] = true
 			}
 		}
@@ -121,7 +121,7 @@ func TestInstallServiceRecordsPackagesAndWritesUID(t *testing.T) {
 	if err != nil || !st.Complete || !st.UserCreated || st.UID != 988 {
 		t.Fatalf("state = %+v, %v", st, err)
 	}
-	want := "conmon crun podman podman-compose"
+	want := "conmon crun fonts-dejavu-core podman podman-compose"
 	if got := strings.Join(st.Packages, " "); got != want {
 		t.Errorf("packages = %q, want %q", got, want)
 	}
@@ -146,7 +146,7 @@ func TestInstallServiceRecordsPackagesAndWritesUID(t *testing.T) {
 
 func TestInstallDoesNotRecordPreinstalledPodman(t *testing.T) {
 	in, f, _ := newTest(t)
-	f.pkgs["podman"], f.pkgs["podman-compose"] = true, true
+	f.pkgs["podman"], f.pkgs["podman-compose"], f.pkgs["fonts-dejavu-core"] = true, true, true
 	in.Service = false
 	if err := in.Install(); err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestUninstallOrderAndExactPurge(t *testing.T) {
 	if err := in.Uninstall(); err != nil {
 		t.Fatal(err)
 	}
-	order := []string{"disable --now", "podman system reset -f", "disable-linger", "daemon-reload", "userdel", "apt-get purge -y conmon crun podman podman-compose"}
+	order := []string{"disable --now", "podman system reset -f", "disable-linger", "daemon-reload", "userdel", "apt-get purge -y conmon crun fonts-dejavu-core podman podman-compose"}
 	last := -1
 	for _, want := range order {
 		idx := -1

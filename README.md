@@ -38,7 +38,7 @@ tar -xzf reelanvil-VERSION-linux-amd64.tar.gz
 cd reelanvil-VERSION-linux-amd64
 ```
 
-Install. This installs Debian's `podman` and `podman-compose`, creates one `reelanvil` system user, writes `/opt/ReelAnvil` and starts two systemd services (web app and worker). It asks before each change; the first start pulls the container images, which can take several minutes.
+Install. This installs Debian's `podman`, `podman-compose` and `fonts-dejavu-core` (the font for burned captions), creates one `reelanvil` system user, writes `/opt/ReelAnvil` and starts two systemd services (web app and worker). It asks before each change; the first start pulls the container images, which can take several minutes.
 
 ```sh
 sudo ./reelanvil install --service

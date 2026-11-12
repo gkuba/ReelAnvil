@@ -130,3 +130,12 @@ func TestProbeAudioRender(t *testing.T) {
 		t.Fatalf("unknown kind: %v", err)
 	}
 }
+
+func TestIconFontsAreNotCaptionFonts(t *testing.T) {
+	for name, icon := range map[string]bool{"FontAwesome.otf": true, "MaterialIcons-Regular.ttf": true, "weathericons-regular.otf": true,
+		"DejaVuSans.ttf": false, "FiraCode-Bold.ttf": false, "LiberationSans-Regular.ttf": false} {
+		if iconFont(name) != icon {
+			t.Errorf("iconFont(%q) = %v", name, !icon)
+		}
+	}
+}

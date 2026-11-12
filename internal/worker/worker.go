@@ -311,13 +311,20 @@ func (w *Worker) prepareFonts() string {
 	if w.fontsDir != "" {
 		return w.fontsDir
 	}
-	if fontCount(dir) == 0 {
-		if err := os.MkdirAll(dir, 0750); err != nil {
-			return ""
-		}
-		copied := copyFonts(dir, []string{"/usr/share/fonts", "/usr/local/share/fonts"})
-		w.cfg.Log.Printf("copied %d font files to %s", copied, dir)
+	// Copy fresh once per worker run: this folder is ours, and an older copy
+	// may hold fonts that cannot show letters.
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return ""
 	}
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			if e.Type().IsRegular() && isFont(e.Name()) {
+				_ = os.Remove(filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+	copied := copyFonts(dir, []string{"/usr/share/fonts", "/usr/local/share/fonts"})
+	w.cfg.Log.Printf("copied %d font files to %s", copied, dir)
 	if fontCount(dir) > 0 {
 		w.fontsDir = dir
 	} else {
@@ -329,6 +336,17 @@ func (w *Worker) prepareFonts() string {
 func isFont(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
 	return ext == ".ttf" || ext == ".otf"
+}
+
+// iconFont reports fonts made of symbols, which cannot show captions.
+func iconFont(name string) bool {
+	lower := strings.ToLower(name)
+	for _, s := range []string{"awesome", "material", "weather", "icon", "symbol", "emoji", "glyph", "dingbat", "powerline", "codicon"} {
+		if strings.Contains(lower, s) {
+			return true
+		}
+	}
+	return false
 }
 
 func fontCount(dir string) int {
@@ -348,7 +366,7 @@ func copyFonts(dst string, roots []string) int {
 	var preferred, other []string
 	for _, root := range roots {
 		_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !d.Type().IsRegular() || !isFont(d.Name()) {
+			if err != nil || d.IsDir() || !d.Type().IsRegular() || !isFont(d.Name()) || iconFont(d.Name()) {
 				return nil
 			}
 			lower := strings.ToLower(d.Name())
