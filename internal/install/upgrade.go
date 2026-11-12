@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Upgrade replaces the binary, Compose file and units with the bundled ones
@@ -44,7 +45,14 @@ func (i *Installer) Upgrade() error {
 			}
 		}
 	}
+	missing, err := i.missingPackages()
+	if err != nil {
+		return err
+	}
 	i.say("ReelAnvil upgrade plan")
+	if len(missing) > 0 {
+		i.say("  - apt install %s (Debian packages this version needs)", strings.Join(missing, " "))
+	}
 	i.say("  - binary: %s (installed version %s, this binary %s)", yesNo(newBin != oldBin, "replace, keeping reelanvil.previous", "unchanged"), st.Version, i.Version)
 	i.say("  - compose.yaml: %s", yesNo(composeDiffers, "replace, keeping compose.yaml.bak", "unchanged"))
 	if st.Service {
@@ -66,6 +74,9 @@ func (i *Installer) Upgrade() error {
 		return nil
 	}
 
+	if err := i.installMissing(&st, missing); err != nil {
+		return err
+	}
 	if _, err := i.ensureBinary(st, gid, true); err != nil {
 		return err
 	}

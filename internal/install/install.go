@@ -716,28 +716,8 @@ func (i *Installer) Install() error {
 		return nil
 	}
 
-	if len(missing) > 0 {
-		before, err := i.installedPackages()
-		if err != nil {
-			return err
-		}
-		i.say("Installing %s", strings.Join(missing, ", "))
-		if _, err := i.Run.Run(Cmd{Name: "apt-get", Args: append([]string{"install", "-y"}, missing...), Env: []string{"DEBIAN_FRONTEND=noninteractive"}, Stream: true}); err != nil {
-			return err
-		}
-		after, err := i.installedPackages()
-		if err != nil {
-			return err
-		}
-		for p := range after {
-			if !before[p] {
-				st.Packages = append(st.Packages, p)
-			}
-		}
-		sort.Strings(st.Packages)
-		if err := i.saveState(st); err != nil {
-			return err
-		}
+	if err := i.installMissing(&st, missing); err != nil {
+		return err
 	}
 	gid, err := i.ensureUser(&st)
 	if err != nil {
@@ -813,6 +793,33 @@ func (i *Installer) addService(st State) error {
 	}
 	i.say("ReelAnvil is running: http://<this host>:%d/ (no login: trusted networks only)", st.Port)
 	return nil
+}
+
+// installMissing installs the Debian packages in missing and records every
+// package that was newly installed, so uninstall removes exactly those.
+func (i *Installer) installMissing(st *State, missing []string) error {
+	if len(missing) == 0 {
+		return nil
+	}
+	before, err := i.installedPackages()
+	if err != nil {
+		return err
+	}
+	i.say("Installing %s", strings.Join(missing, ", "))
+	if _, err := i.Run.Run(Cmd{Name: "apt-get", Args: append([]string{"install", "-y"}, missing...), Env: []string{"DEBIAN_FRONTEND=noninteractive"}, Stream: true}); err != nil {
+		return err
+	}
+	after, err := i.installedPackages()
+	if err != nil {
+		return err
+	}
+	for p := range after {
+		if !before[p] {
+			st.Packages = append(st.Packages, p)
+		}
+	}
+	sort.Strings(st.Packages)
+	return i.saveState(*st)
 }
 
 func (i *Installer) missingPackages() ([]string, error) {

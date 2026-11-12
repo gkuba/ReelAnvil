@@ -271,7 +271,7 @@ func TestUpgradeDryRunChangesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := os.ReadFile(filepath.Join(in.Root, "server", "reelanvil"))
-	if string(got) != "binary-v1" || len(f.log) != 0 {
+	if string(got) != "binary-v1" || f.ran("apt-get") != 0 || f.ran("systemctl") != 0 || f.ran("pull") != 0 {
 		t.Errorf("dry run changed things: %q %v", got, f.log)
 	}
 	if !strings.Contains(in.Out.(*strings.Builder).String(), "replace, keeping reelanvil.previous") {
@@ -798,5 +798,26 @@ func TestDoctorRepairReportsUnitsThatDoNotStop(t *testing.T) {
 	})
 	if err := in.Doctor(true, false); err == nil || !strings.Contains(err.Error(), "timed out waiting for units to stop") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// An install made before a package became required gets it on upgrade, and
+// uninstall will remove it.
+func TestUpgradeInstallsNewlyRequiredPackages(t *testing.T) {
+	in, f, _ := newTest(t)
+	if err := in.Install(); err != nil {
+		t.Fatal(err)
+	}
+	delete(f.pkgs, "fonts-dejavu-core")
+	os.WriteFile(in.Exe, []byte("binary-v2"), 0o755)
+	f.log = nil
+	if err := in.Upgrade(); err != nil {
+		t.Fatal(err)
+	}
+	if f.ran("apt-get install -y fonts-dejavu-core") != 1 {
+		t.Errorf("log: %v", f.log)
+	}
+	if st, _ := in.loadState(); !strings.Contains(strings.Join(st.Packages, " "), "fonts-dejavu-core") {
+		t.Errorf("package not recorded: %v", st.Packages)
 	}
 }
