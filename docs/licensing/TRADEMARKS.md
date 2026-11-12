@@ -1,6 +1,6 @@
 # ReelAnvil name and branding
 
-**Status:** Draft branding guidance; not a claim of federal trademark registration.
+**Status:** Branding guidance; not a claim of trademark registration.
 
 ReelAnvil is the name of the official project. The MIT software license grants rights to the covered code, not a trademark license or a right to falsely claim official affiliation.
 
@@ -9,4 +9,4 @@ ReelAnvil is the name of the official project. The MIT software license grants r
 - Distinguish forks clearly from official releases and avoid confusing use of the project's name or logo.
 - Copyright notices required by the MIT license must remain intact.
 
-This document describes intended project branding practices. It does not create trademark rights that do not otherwise exist or override rights granted under the MIT license. The name/logo have not been represented here as federally registered. Trademark clearance and any registration can be reconsidered before release or if the project grows.
+This document describes intended project branding practices. It does not create trademark rights that do not otherwise exist or override rights granted under the MIT license. The name/logo have not been represented here as federally registered. No trademark search or registration is planned; this can be reconsidered if the project grows.

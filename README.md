@@ -1,67 +1,136 @@
 # ReelAnvil
 
-**ReelAnvil** is a planned open-source, self-hosted application for turning authorized long-form video into reviewable short-form clips.
+**ReelAnvil** is a self-hosted web app that turns long videos you have the right to use into short vertical clips. You give it a video; local AI finds the strong moments, a separate AI review checks them, FFmpeg renders them, and you approve what is worth posting. Nothing is published for you.
 
-> **Project status:** Build 0.9.2 is a local development prototype, not a supported release. Campaign records can be added and tracked manually; the media, AI, worker and platform integrations are still planned.
+> **Trusted network only.** ReelAnvil has no login. By default it listens on `0.0.0.0:4747` so other machines on your home or lab network can reach it. Anyone who can reach that port can use and change it. Never port-forward it, publish it through a tunnel or put it behind a public reverse proxy. Keep the port limited to your LAN in the host firewall (for example `ufw allow from 192.168.1.0/24 to any port 4747`).
 
-## The idea
+## What it does
 
-ReelAnvil aims to bring the ingestion, analysis, editing, and review of short-form video clips into one browser-managed workflow. The goal is to make repetitive media processing easier while keeping people in control of what gets published.
+1. **Import** a video from the `incoming/` folder or an HTTPS link (you confirm you have the rights).
+2. **Transcribe** it with faster-whisper.
+3. **Hunt** for clips with a local Ollama model, then check where each answer really ends.
+4. **Review** each pick with a second model that scores hook, completeness, standalone sense, interest and fit, and never sees the hunter's reasoning.
+5. **Render** 9:16 clips with FFmpeg (blurred-background fill, burned captions, a `.srt` and a `.json` manifest beside each clip).
+6. **Approve** on the Review page: play the clip in the browser, download it, approve or reject it. Notes can become lessons for later jobs, or trigger a retry.
 
-The planned workflow is:
+Progress is real: stages, counts, elapsed time and logs. There are no time estimates. Storage limits block a job instead of deleting anything. Campaign tracking is unfinished and hidden until you switch on **Settings → General → Developer features**.
 
-1. Import video from authorized sources.
-2. Transcribe and analyze the material.
-3. Identify promising clip candidates using AI.
-4. Independently review candidate selections.
-5. Render clips with FFmpeg and perform technical quality checks.
-6. Let a human review and approve the final clips before publishing.
+## Requirements
 
-## Planned features
+- **Debian 13** (trixie), 64-bit, with `sudo`. Other systems are untested and not supported.
+- 16 GB RAM or more is comfortable for the 7B models; a GPU is optional (Ollama uses CPU otherwise, which is slower).
+- Disk space for models, source videos and clips; set a limit under **Settings → Paths & Storage**.
+- Internet access to pull the container images and models.
 
-- A self-hosted web interface for setup, jobs, queues, reviews, storage, and diagnostics
-- Local-first processing with configurable AI and transcription services
-- Real processing status, logs, and elapsed time rather than speculative ETAs
-- Storage controls, job isolation, backups, and recovery workflows
-- A responsive, dark-themed interface inspired by Nordic-industrial design
-- Optional workflow organization and performance tracking without guaranteed-earnings claims
+## Install on Debian 13
 
-## Current prototype
+Download the release archive and its checksum from the project's GitHub releases page, then check and unpack it:
 
-The current development build provides the themed local web interface, persistent SQLite setup, campaign records and tracking, and a global icon choice independent of the active interface theme. Content Rewards and Vyro discovery are explicitly unavailable: ReelAnvil does not scrape sites, log in, apply to campaigns, find social posts, or submit content. Jobs, media processing, AI, and worker pages remain placeholders.
+```sh
+sha256sum -c reelanvil-VERSION-linux-amd64.tar.gz.sha256
+```
 
-> **Not for the public internet.** ReelAnvil has no authentication yet. By default it listens on `0.0.0.0:4747` so other machines on your local network can reach it; change the bind address, port and allowed host names under **Settings → General → Network** (then **Restart ReelAnvil**), or set `127.0.0.1` to keep it on one machine. Anyone who can reach that port can use and change the instance. Use it only on a network you trust, and never port-forward it, publish it through a tunnel, or put it behind a public reverse proxy. Follow standard practice if you do open it up: allow the port only from your LAN subnet in the host firewall (for example `ufw allow from 192.168.1.0/24 to any port 4747`), keep the host patched, and run ReelAnvil as an unprivileged user.
+```sh
+tar -xzf reelanvil-VERSION-linux-amd64.tar.gz
+```
 
-## Intended technical direction
+```sh
+cd reelanvil-VERSION-linux-amd64
+```
 
-ReelAnvil is being designed primarily for **Debian 13 Linux**, with a native **Go** application, separate web-server and media-worker processes, and **SQLite** for persistent state. Planned media and AI integrations include FFmpeg, yt-dlp, faster-whisper, and Ollama. Where containers are needed, the intention is to use upstream images rather than distribute custom images or bundled models.
+Install. This installs Debian's `podman` and `podman-compose`, creates one `reelanvil` system user, writes `/opt/ReelAnvil` and starts two systemd services (web app and worker). It asks before each change; the first start pulls the container images, which can take several minutes.
 
-These are design targets and have **not** yet been validated as a completed deployment.
+```sh
+sudo ./reelanvil install --service
+```
 
-## Getting started
+Open `http://<this machine>:4747`, then:
 
-There is no supported installation or release yet. To build and run the local development prototype (Go 1.23 or newer):
+1. **Settings → AI**: pull a model (the page recommends one for your RAM and GPU), then choose a hunter and a reviewer model.
+2. **Settings → Transcription**: choose the Whisper model and language.
+3. **Services** and **Diagnostics** should read "Ready".
+4. **Media**: start a job.
+
+Check the install at any time:
+
+```sh
+sudo ./reelanvil doctor
+```
+
+## Upgrade, repair, uninstall
+
+Unpack the newer release and run its binary:
+
+```sh
+sudo ./reelanvil upgrade
+```
+
+`upgrade --dry-run` shows the plan and changes nothing. Settings, the database and media are never touched.
+
+Fix a broken install (folders, units, services) without touching your data:
+
+```sh
+sudo ./reelanvil doctor --repair
+```
+
+Remove the services, the service user and the Podman packages the installer added, but keep your data:
+
+```sh
+sudo ./reelanvil uninstall
+```
+
+Also delete everything in `/opt/ReelAnvil` (settings, database, media, models); `--yes` never does this by itself:
+
+```sh
+sudo ./reelanvil uninstall --delete-data
+```
+
+## Back up and roll back
+
+Everything lives in `/opt/ReelAnvil`: `server/settings/` (settings and themes), `server/data/` (the SQLite database) and the media folders. To back up, stop the services, copy the folder, start them again:
+
+```sh
+sudo systemctl stop reelanvil reelanvil-worker
+```
+
+```sh
+sudo cp -a /opt/ReelAnvil /opt/ReelAnvil.backup
+```
+
+```sh
+sudo systemctl start reelanvil-worker reelanvil
+```
+
+Each upgrade keeps the old binary as `/opt/ReelAnvil/server/reelanvil.previous`. To roll back, stop both services, copy it over `/opt/ReelAnvil/server/reelanvil`, and start them. If the new version migrated the database, also restore your backup folder: ReelAnvil refuses to open a database from a newer version than it knows.
+
+## Container images
+
+The installer's Compose file pulls images straight from their upstream registries; ReelAnvil does not bundle or repackage them. Ollama and Whisper are pinned by digest to the versions the release was tested with. The media image (FFmpeg and yt-dlp) tracks `:latest` so yt-dlp keeps up with site changes. To move a pin, see the comment at the top of `internal/install/assets/compose.yaml.tmpl`.
+
+## Build from source
+
+Go 1.23 or newer:
 
 ```sh
 ./scripts/build-dev.sh
+```
+
+```sh
 cd bin/Release
+```
+
+```sh
 ./reelanvil serve
 ```
 
-Open <http://127.0.0.1:4747> and stop the server with **Ctrl+C**. See [development and test instructions](docs/DEVELOPMENT.md) for the Go checks, local database behavior, and review steps.
+Open <http://127.0.0.1:4747> and stop with **Ctrl+C**. See [the development guide](docs/DEVELOPMENT.md) for checks, scratch data directories and review steps, and [AGENTS.md](AGENTS.md) for the project rules.
 
-For current plans and decisions, see:
+## Documents
 
-- [Build standards](docs/REELANVIL_BUILD_STANDARDS.md)
-- [Project status](docs/STATUS.md)
-- [Change history](docs/CHANGELOG.md)
-- [Contributor and agent guide](AGENTS.md)
-- [Licensing information](docs/licensing/LICENSING.md)
+- [Build standards](docs/REELANVIL_BUILD_STANDARDS.md), [project status](docs/STATUS.md), [change history](docs/CHANGELOG.md)
+- [Security requirements](docs/SECURITY_REQUIREMENTS.md)
+- [Licensing](docs/licensing/LICENSING.md) and [third-party notices](docs/licensing/THIRD_PARTY_NOTICES.md)
 
-## Licensing
+## License
 
-The project is targeting the **MIT License**. Final copyright attribution, third-party notices, and dependency audits must be completed before a public release. See [licensing documents](docs/licensing/).
-
-## Project name
-
-ReelAnvil is a working project name. Branding and trademark checks are part of the pre-release process.
+MIT. See [docs/licensing/LICENSE](docs/licensing/LICENSE). You are responsible for having the rights to every video you import and for what you post.

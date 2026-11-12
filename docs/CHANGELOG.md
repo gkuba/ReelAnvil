@@ -5,6 +5,7 @@ User-visible changes. Build and test records live in [`BUILD_HISTORY.md`](BUILD_
 ## Unreleased
 
 ### Build 0.9.2 (development)
+- Release readiness: Ollama and Whisper images are pinned by digest in the installer; release archive built from an allowlist with automated checks (`scripts/package-release.sh`, `scripts/check-release.sh`); secret scan (`scripts/scan-secrets.sh`) in CI; completed dependency audit with full notices; README now has the install, upgrade, backup and rollback guide; theme recovery failure-injection tests; page footers and the top bar no longer say "prototype" or "Mockup".
 - Hunting now checks each pick's ending: the model is asked where the speaker finishes the answer, and the clip ends there (never into the next pick, never past 2 minutes, then on to a sentence end). If the check fails, the first cut stays.
 - Each rendered clip gets a `.json` manifest beside it (source, start and end, title, hook, model, attempt, crop, captions).
 - Campaigns are now a **Developer feature**: off by default, switched on in Settings → General → Developer features. Off hides the Campaigns page, the campaign picker on Media, post recording on Review and the campaign column on Jobs; Overview then shows running jobs, clips to review and approved clips.

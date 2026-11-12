@@ -25,7 +25,7 @@
 <div class="card narrow-fields">
 <h2>Network</h2>
 <p>Running on <code>{{.Running}}</code>{{if .Exposed}}, reachable from other machines{{else}}, this machine only{{end}}. Changes apply after a restart.</p>
-<div class="note">ReelAnvil has no authentication yet. Anyone who can reach this port can use and change it. Use it on a trusted local network only, never the public internet.</div>
+<div class="note">ReelAnvil has no login, by design. Anyone who can reach this port can use and change it. Use it on a trusted local network only, never the public internet.</div>
 {{if .AddrOverride}}<div class="note">This run's address was set by <code>--addr</code> or <code>REELANVIL_ADDR</code>. The saved address applies when ReelAnvil starts without it.</div>{{end}}
 {{if .HostsOverride}}<div class="note">This run's host names were set by <code>--allowed-hosts</code> or <code>REELANVIL_ALLOWED_HOSTS</code>. The saved list applies when ReelAnvil starts without it.</div>{{end}}
 <form method="post" action="/settings/network">
@@ -46,5 +46,5 @@
 <form method="post" action="/system/restart"><div class="actions end"><button type="submit" class="secondary"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>Restart ReelAnvil</button></div></form>
 </div>
 {{end}}
-<footer>ReelAnvil · Multi-tone theme UI prototype · Local-only · No production services</footer>
+<footer>ReelAnvil · For trusted networks only · No login</footer>
 {{end}}

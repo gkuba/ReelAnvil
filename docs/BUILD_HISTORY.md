@@ -2,6 +2,12 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-11-12 — Build 0.9.2: release readiness (not committed until pushed below)
+
+- **Changes:** digest pins (`compose.yaml.tmpl`, `pin_test.go`); `scripts/package-release.sh`, `check-release.sh`, `scan-secrets.sh` and CI steps; notices audit; README install guide; `themes_recovery_test.go` (8 tests); copy cleanup (footers, top bar, no-login wording).
+- **Verified:** gofmt, vet, `go test -race -count=1 ./...`, staticcheck, secret scan, release archive built and checked (a bad archive with STATUS.md is rejected); phone-width (375 px) screenshots of Overview and Settings rendered in headless Chromium against a scratch data dir.
+- **Not verified:** a clean-machine install from the final README on fresh Debian 13; the new digests were taken from the running pixelreel images, not re-pulled; no penetration test.
+
 ## 2026-11-12 — Build 0.9.2: end-of-answer check, clip manifests, Developer features (not committed)
 
 - **Changes:** `pipeline.EndPrompt/ParseEnd/EndLimit` and `run.checkEnd` in the hunt step; `writeManifest` in the render step; `Settings.DevFeatures` with `devOnly` route gating, sidebar/media/review/jobs template guards and a pipeline Overview.

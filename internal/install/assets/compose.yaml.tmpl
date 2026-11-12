@@ -1,10 +1,12 @@
 # Managed by "reelanvil install". Edits are overwritten by upgrade. WHISPER_MODEL, WHISPER_LANG and the media mount
 # come from server/settings/config.json (Settings > Transcription and Paths & Storage).
 # ReelAnvil helper services. Ports bind to 127.0.0.1 only: the services have no auth.
-# Images track :latest (maintainer's choice, 2026-11-05).
+# Ollama and Whisper are pinned to the digests validated on the reference host (2026-11-12); the media image tracks
+# :latest on purpose so its yt-dlp stays current (yt-dlp extractors break often). To move a pin, pull the new image,
+# run a test job, then change the digest here.
 services:
   ollama:
-    image: docker.io/ollama/ollama:latest
+    image: docker.io/ollama/ollama@sha256:910d0d8107b538fb0894e63163eb195de0cc7aefcbc666dc62d3b18f71124592
     restart: unless-stopped
     ports:
       - "127.0.0.1:11434:11434"
@@ -12,7 +14,7 @@ services:
       - ./ollama:/root/.ollama
 
   whisper:
-    image: docker.io/linuxserver/faster-whisper:latest
+    image: docker.io/linuxserver/faster-whisper@sha256:619615d262b677b52bdca3ec126096dab096df465bf86f7b6fd8316825e3a6b2
     restart: unless-stopped
     environment:
       # Rootless: container root maps to the reelanvil user, so files in ./whisper stay reelanvil's.

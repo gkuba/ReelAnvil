@@ -1,7 +1,7 @@
 # ReelAnvil — Project Status
 
 **Last updated:** 2026-11-12
-**Current build:** 0.9.2-dev, local development prototype on `dev`. Not a release.
+**Current build:** 0.9.2-dev on `dev`, release-ready pending the maintainer's review.
 **Repository:** `git@github.com:gkuba/ReelAnvil.git` — `dev` for development, `main` for squashed releases/checkpoints.
 **Run it:** `cd bin/Release && ./reelanvil serve`, then open <http://127.0.0.1:4747>.
 
@@ -45,12 +45,13 @@ Done 2026-11-12: per-clip end-of-answer check, clip manifests, Campaigns behind 
 
 Ideas come from reading other open-source clippers; all code is our own (see `AGENTS.md`).
 
-## Open items and release gates
+## Release state (2026-11-12)
 
-- **Authentication and session-bound CSRF** must exist before any deployment beyond a trusted LAN. Internet exposure is not authorized.
-- Theme recovery failure-injection checks remain open: [`PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`](PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md).
-- License copyright holder, third-party notice audit, trademark check, pinned image digests and release-packaging tests are pending.
-- No penetration test yet. Secret scanning is not yet wired into CI.
+Done: Debian 13 installer with 5 clean install/uninstall loops, Ollama and Whisper images pinned by digest, release archive built from an allowlist and checked (`scripts/package-release.sh`, `scripts/check-release.sh`), secret scan (`scripts/scan-secrets.sh`) in CI, dependency audit and notices (`docs/licensing/`), install, upgrade, backup and rollback guide in `README.md`, theme recovery automated checks.
+
+Decided by the maintainer: **no authentication, trusted LAN only** (documented everywhere); **no trademark search or registration**; Campaigns stay a Developer feature (off by default); the media image tracks `:latest` so yt-dlp stays current.
+
+Left for the maintainer: review the clips and the theme pages in a browser (`docs/PRE_RELEASE_THEME_RECOVERY_CHECKLIST.md`), tune the model prompts, then squash-merge `dev` into `main`, set the release version and tag. A clean-machine install from the final README on a fresh Debian 13 host has not been run (pixelreel is the reference host); no penetration test has been done.
 
 ## Confirmed decisions
 

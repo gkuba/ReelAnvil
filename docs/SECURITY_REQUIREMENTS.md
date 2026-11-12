@@ -1,6 +1,6 @@
 # ReelAnvil security requirements
 
-Security applies even to loopback and internal deployments. The current prototype is unauthenticated. It listens on `0.0.0.0:4747` by default for trusted-LAN use (configurable in Settings → General → Network, or loopback-only with `127.0.0.1`), but it must never be exposed to the internet through port forwarding, a tunnel or a public proxy.
+Security applies even to loopback and internal deployments. ReelAnvil is unauthenticated by design (trusted LAN only). It listens on `0.0.0.0:4747` by default for trusted-LAN use (configurable in Settings → General → Network, or loopback-only with `127.0.0.1`), but it must never be exposed to the internet through port forwarding, a tunnel or a public proxy.
 
 ## Secrets and integrations
 

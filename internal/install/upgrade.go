@@ -53,7 +53,7 @@ func (i *Installer) Upgrade() error {
 	i.say("  - compose.yaml uses the saved Whisper model and language and the media root %s", media)
 	i.say("  - media folder: create %s and its sub-folders if missing (existing folders are left alone)", media)
 	i.say("  - settings: add any missing service fields to server/settings/config.json (existing values are kept)")
-	i.say("  - pull the latest container images (they track :latest, so this also brings the media image's newer yt-dlp)")
+	i.say("  - pull the container images (Ollama and Whisper are pinned to validated digests; the media image tracks :latest, so this brings its newer yt-dlp)")
 	if st.Service {
 		i.say("  - restart %s and %s", serverUnit, workerUnit)
 	}
