@@ -579,10 +579,42 @@ func (r *run) huntStep() error {
 	}
 	cands := make([]store.Candidate, len(best))
 	for i, p := range best {
+		r.progress(int64(i), int64(len(best)), fmt.Sprintf("Checking where clip %d ends", i+1))
+		p.End = r.checkEnd(model, brief, segs, p, best)
 		cands[i] = candidateFor(p, segs, model, r.job.Attempt)
 	}
 	r.done = fmt.Sprintf("%d candidates", len(cands))
 	return r.s.store.ReplaceCandidates(context.Background(), r.job.ID, cands)
+}
+
+// checkEnd asks the model where the pick's answer finishes and returns the end
+// line to use. Any failure keeps the first cut. The end never runs into the
+// next pick.
+func (r *run) checkEnd(model string, brief pipeline.Brief, segs []pipeline.Segment, p pipeline.Pick, all []pipeline.Pick) int {
+	last := pipeline.EndLimit(segs, p.Start, r.job.MaxS)
+	for _, q := range all {
+		if q.Start > p.Start && q.Start <= last {
+			last = q.Start - 1
+		}
+	}
+	if last <= p.Start {
+		return p.End
+	}
+	raw, err := ollamaGenerate(r.ctx, r.cfg.OllamaAddress, model, pipeline.EndPrompt(brief, segs, p.Start, p.End, last))
+	if err != nil {
+		r.logf("End check skipped: %v", err)
+		return p.End
+	}
+	end, ok := pipeline.ParseEnd(raw, segs, p.Start, last, r.job.MinS)
+	if !ok {
+		r.logf("End check for lines %d-%d gave no usable answer; keeping the first cut", p.Start, p.End)
+		return p.End
+	}
+	end = pipeline.SettleEnd(segs, p.Start, end, last, r.job.MaxS)
+	if end != p.End {
+		r.logf("End check moved lines %d-%d to end at line %d", p.Start, p.End, end)
+	}
+	return end
 }
 
 // huntRedo looks for one clip that fixes the user's note about a rejected clip,
@@ -884,6 +916,9 @@ func (r *run) renderStep() error {
 		if res.Captions == "burned" {
 			burned++
 		}
+		if err := writeManifest(out, src, c, res.Captions); err != nil {
+			return err
+		}
 		if _, err := r.s.store.AddClip(context.Background(), store.Clip{JobID: r.job.ID, CandidateID: c.ID, Path: r.rel(out), SRTPath: r.rel(srt), Captions: res.Captions}); err != nil {
 			return err
 		}
@@ -963,4 +998,29 @@ func (r *run) qaStep() error {
 	r.done = fmt.Sprintf("%d of %d passed", passed, len(clips))
 	r.summary = fmt.Sprintf("%d clip(s) ready for review", passed)
 	return nil
+}
+
+// clipManifest sits beside each rendered clip so a render can be checked or
+// redone: where it came from, which part, and how it was made.
+type clipManifest struct {
+	Source   string `json:"source"`
+	StartMS  int64  `json:"start_ms"`
+	EndMS    int64  `json:"end_ms"`
+	Title    string `json:"title"`
+	Hook     string `json:"hook"`
+	Model    string `json:"model"`
+	Attempt  int    `json:"attempt"`
+	Crop     string `json:"crop"`
+	Captions string `json:"captions"`
+	Output   string `json:"output"`
+}
+
+func writeManifest(out string, src store.Source, c store.Candidate, captions string) error {
+	m := clipManifest{Source: src.Path, StartMS: c.StartMS, EndMS: c.EndMS, Title: c.Title, Hook: c.Hook,
+		Model: c.Model, Attempt: c.Attempt, Crop: "9:16 blurred background", Captions: captions, Output: filepath.Base(out)}
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(strings.TrimSuffix(out, ".mp4")+".json", append(b, '\n'), 0o640)
 }

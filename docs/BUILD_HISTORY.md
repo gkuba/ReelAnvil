@@ -2,6 +2,12 @@
 
 One maintained record of what was built, how it was checked, and where it landed. Add the newest entry at the top. Keep entries short: what changed, what was verified, and what wasn't.
 
+## 2026-11-12 — Build 0.9.2: end-of-answer check, clip manifests, Developer features (not committed)
+
+- **Changes:** `pipeline.EndPrompt/ParseEnd/EndLimit` and `run.checkEnd` in the hunt step; `writeManifest` in the render step; `Settings.DevFeatures` with `devOnly` route gating, sidebar/media/review/jobs template guards and a pipeline Overview.
+- **Verified:** gofmt, vet and `go test -race ./...` pass, including new tests for the end parser, the manifest and the hidden Campaigns area.
+- **Not verified:** the end check against a real model on pixelreel; browser check at desktop and phone width (see the entry that follows if done).
+
 ## 2026-11-07 — Build 0.9.2: pull card updates in place (not committed)
 
 - **Changes:** the Settings → AI meta refresh is replaced by `initPoll` in `app.js`. It re-reads the page every 3 s and swaps the `#pull-card` element in place. When the pull ends, it refreshes the `data-refresh` hunter and reviewer lists once, keeping an unsaved choice. The CSP gains `connect-src 'self'` (fetch was blocked without it). Pull and Stop redirect to `/settings/ai#pull-card`.

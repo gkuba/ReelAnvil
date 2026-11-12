@@ -103,6 +103,7 @@ func parsePages(names ...string) map[string]*template.Template {
 // data struct embeds it.
 type pageBase struct {
 	Title, Section, BodyTheme, IconURL string
+	Dev                                bool
 	Version, DataDir, Address          string
 	Flash                              *flash
 	RestartPending                     bool
@@ -117,7 +118,25 @@ func (s *Server) base(w http.ResponseWriter, r *http.Request, title, section str
 		Title: title, Section: section, BodyTheme: bodyTheme(cfg.Theme),
 		IconURL: iconURL(selectedIcon(cfg), 64), Version: Version,
 		DataDir: s.dataDir, Address: s.addr, Flash: takeFlash(w, r),
-		RestartPending: pending,
+		RestartPending: pending, Dev: cfg.DevFeatures,
+	}
+}
+
+// devOn reports whether Developer features are switched on.
+func (s *Server) devOn() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cfg.DevFeatures
+}
+
+// devOnly hides a handler (the Campaigns area) until Developer features are on.
+func (s *Server) devOnly(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !s.devOn() {
+			http.NotFound(w, r)
+			return
+		}
+		h(w, r)
 	}
 }
 

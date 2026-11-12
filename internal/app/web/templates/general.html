@@ -11,6 +11,16 @@
 <div class="actions end"><button type="submit"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v7h10V3M7 21v-8h10v8"/></svg>Save Settings</button></div>
 </form>
 </div>
+<div class="card narrow-fields">
+<h2>Developer features</h2>
+<p>Campaigns (manual tracking, posts and totals) are unfinished. Switch them on to try them; the rest of ReelAnvil does not need them.</p>
+<form method="post" action="/settings">
+<input type="hidden" name="instance_name" value="{{.Config.InstanceName}}">
+<input type="hidden" name="dev_present" value="1">
+<label><input type="checkbox" name="dev_features"{{if .Config.DevFeatures}} checked{{end}}> Show Campaigns</label>
+<div class="actions end"><button type="submit"><svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3zM7 3v7h10V3M7 21v-8h10v8"/></svg>Save</button></div>
+</form>
+</div>
 {{with .Network}}
 <div class="card narrow-fields">
 <h2>Network</h2>

@@ -1,4 +1,5 @@
 {{define "content"}}
+{{if .Dev}}
 <section class="hero"><img src="/assets/branding/overview-mountain.png" alt="Purple mountain peaks beneath a starry sky reflected in a lake"><div class="hero-copy"><div class="eyebrow">Your campaign workspace</div>
 <h1>Make every frame count.</h1>
 <p>Keep campaign details and deadlines in view. Add and track campaigns manually while platform discovery integrations remain unavailable.</p>
@@ -32,5 +33,34 @@
 </div>
 {{else}}<div class="empty-inline">No campaigns are tracked yet. Add one manually to get started.</div>
 {{end}}</section>
-<footer>ReelAnvil · Local-only prototype · No external campaign data is being fetched</footer>
+{{else}}
+<section class="hero"><img src="/assets/branding/overview-mountain.png" alt="Purple mountain peaks beneath a starry sky reflected in a lake"><div class="hero-copy"><div class="eyebrow">Your clip workspace</div>
+<h1>Make every frame count.</h1>
+<p>Give ReelAnvil a video, let the models find the moments, then approve the clips worth posting.</p>
+<a class="btn" href="/media">Start a job</a></div>
+</section>
+<section class="stats" aria-label="Pipeline summary"><div class="card metric-card"><h2>Running</h2>
+<div class="metric">{{.Running}}</div>
+<small>Jobs working now</small></div>
+<div class="card metric-card"><h2>To review</h2>
+<div class="metric">{{.ToReview}}</div>
+<small>Clips waiting for your decision</small></div>
+<div class="card metric-card"><h2>Approved</h2>
+<div class="metric">{{.Approved}}</div>
+<small>Clips you approved</small></div>
+</section>
+<section class="card tracked-preview"><div class="page-top"><div><div class="eyebrow">Latest</div>
+<h2>Recent jobs</h2>
+</div>
+<a class="btn secondary small" href="/jobs">View all</a></div>
+{{if .Recent}}<div class="table-wrap"><table class="table"><thead><tr><th>Job</th><th>State</th></tr></thead>
+<tbody>{{range .Recent}}<tr><td><a href="/jobs?id={{.ID}}"><strong>{{.Title}}</strong></a></td>
+<td><span class="badge status">{{.State}}</span></td></tr>
+{{end}}</tbody>
+</table>
+</div>
+{{else}}<div class="empty-inline">No jobs yet. Start one from Media.</div>
+{{end}}</section>
+{{end}}
+<footer>ReelAnvil · Local-only · Trusted network use</footer>
 {{end}}

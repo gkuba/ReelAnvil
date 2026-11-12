@@ -541,7 +541,7 @@ func securityTestServer(t *testing.T) *Server {
 		}
 	})
 	return &Server{
-		cfg: defaults(), cfgPath: cfgPath, addr: DefaultAddr, started: time.Now(), log: log.New(io.Discard, "", 0), themes: themes,
+		cfg: devDefaults(), cfgPath: cfgPath, addr: DefaultAddr, started: time.Now(), log: log.New(io.Discard, "", 0), themes: themes,
 		store: db,
 	}
 }
@@ -679,5 +679,44 @@ func TestSettingsAndThemeMutationRoutesAcceptSameOriginBrowserPosts(t *testing.T
 				t.Fatal("refresh did not load the persisted custom theme")
 			}
 		})
+	}
+}
+
+// devDefaults is defaults() with Developer features on, so the Campaigns
+// tests reach their pages.
+func devDefaults() Settings {
+	c := defaults()
+	c.DevFeatures = true
+	return c
+}
+
+func TestCampaignsHiddenUntilDeveloperFeaturesOn(t *testing.T) {
+	s := securityTestServer(t)
+	s.cfg.DevFeatures = false
+	h := s.handler()
+	for _, path := range []string{"/campaigns", "/campaigns/add"} {
+		r := httptest.NewRequest(http.MethodGet, path, nil)
+		r.Host = "127.0.0.1:8080"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("%s = %d, want 404", path, w.Code)
+		}
+	}
+	for _, path := range []string{"/", "/jobs", "/media"} {
+		r := httptest.NewRequest(http.MethodGet, path, nil)
+		r.Host = "127.0.0.1:8080"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusOK || strings.Contains(w.Body.String(), `href="/campaigns"`) || strings.Contains(w.Body.String(), `id="campaign"`) {
+			t.Errorf("%s shows campaigns or fails (%d)", path, w.Code)
+		}
+	}
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.Host = "127.0.0.1:8080"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if !strings.Contains(w.Body.String(), "Recent jobs") {
+		t.Error("pipeline overview missing")
 	}
 }

@@ -596,3 +596,55 @@ func SafeName(s string) string {
 	}
 	return out
 }
+
+// EndLimit returns the last line a clip starting at start may use: the
+// longest it can run is the job's maximum or FinishCapS, whichever is more.
+func EndLimit(segs []Segment, start, maxS int) int {
+	limit := int64(max(maxS, FinishCapS)) * 1000
+	last := start
+	for last+1 < len(segs) && segs[last+1].EndMS-segs[start].StartMS <= limit {
+		last++
+	}
+	return last
+}
+
+// EndPrompt asks where the answer in segs[start..] finishes. The clip was
+// first cut at end; the speaker may stop earlier or go on.
+func EndPrompt(b Brief, segs []Segment, start, end, last int) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, `You check where a short vertical video clip should stop.
+%s
+
+The clip starts at line %d and was first cut at line %d. Find the line where the speaker finishes the whole answer, story or point that began at line %d. The clip must not stop while the point is still being made, and it must not run on into a new topic.
+Transcript lines are numbered: [number] start-end text.
+`, b.text(), start, end, start)
+	writeLines(&sb, segs, start, last)
+	sb.WriteString(`
+Reply with JSON only: {"end":<line number where the point is finished>}`)
+	return sb.String()
+}
+
+// ParseEnd reads the checked end line. It must lie in [start, last] and keep
+// the clip at least minS seconds long; otherwise ok is false and the first
+// cut stays.
+func ParseEnd(raw string, segs []Segment, start, last, minS int) (end int, ok bool) {
+	var reply struct {
+		End any `json:"end"`
+	}
+	if err := json.Unmarshal([]byte(extractJSON(raw)), &reply); err != nil {
+		return 0, false
+	}
+	e, good := toInt(reply.End)
+	if !good || e < int64(start) || e > int64(last) {
+		return 0, false
+	}
+	if (segs[e].EndMS-segs[start].StartMS)/1000 < int64(minS) {
+		return 0, false
+	}
+	return int(e), true
+}
+
+// SettleEnd applies a checked end line, then moves it on to a sentence end.
+func SettleEnd(segs []Segment, start, end, last, maxS int) int {
+	return finishSentence(segs, start, end, last, maxS)
+}

@@ -28,7 +28,7 @@
 <h2>{{.Title}}</h2>
 <p class="muted">{{.Hook}}</p>
 <p><small>Job <a class="link" href="/jobs?id={{.JobID}}">{{.JobID}} · {{.JobTitle}}</a> · {{clock .StartMS}}–{{clock .EndMS}} · {{clock .DurationMS}} · {{bytes .Size}}{{if gt .Attempt 1}} · Attempt {{.Attempt}}{{end}}</small></p>
-<p><small>Campaign: {{if .CampaignTitle}}{{.CampaignTitle}}{{else}}none{{end}} · Captions {{.Captions}}</small></p>
+<p><small>{{if $.Dev}}Campaign: {{if .CampaignTitle}}{{.CampaignTitle}}{{else}}none{{end}} · {{end}}Captions {{.Captions}}</small></p>
 {{with scoreRows .Scores}}<ul class="chips">{{range .}}<li class="chip">{{.Label}} {{.Score}}</li>{{end}}</ul>
 <ul class="score-reasons">{{range .}}{{if .Reason}}<li><small><strong>{{.Label}}</strong> {{.Reason}}</small></li>{{end}}{{end}}</ul>
 {{end}}{{with partRows .Parts}}<p class="parts"><small>{{range $i, $p := .}}{{if $i}} · {{end}}{{$p.At}} {{$p.Label}}{{end}}</small></p>
@@ -61,7 +61,7 @@
 <div class="actions"><button class="secondary small" type="submit">Save post</button></div>
 </form>
 </details>
-{{end}}{{if .CampaignID}}<details><summary class="btn secondary small">Record a post</summary>
+{{end}}{{if and $.Dev .CampaignID}}<details><summary class="btn secondary small">Record a post</summary>
 <form method="post" action="/review/post"><input type="hidden" name="clip" value="{{.ID}}"><input type="hidden" name="view" value="approved"><label for="post-{{.ID}}">Post URL</label>
 <input id="post-{{.ID}}" name="url" type="url" required maxlength="2048" placeholder="https://…"><label for="status-{{.ID}}">Status</label>
 <select id="status-{{.ID}}" name="status">{{range $.Statuses}}<option value="{{.}}">{{.}}</option>

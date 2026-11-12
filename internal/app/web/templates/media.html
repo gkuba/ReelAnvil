@@ -19,11 +19,11 @@
 <input id="url" name="url" type="url" inputmode="url" maxlength="2048" placeholder="https://…"></div>
 <div><label for="title">Title (optional)</label>
 <input id="title" name="title" maxlength="160" placeholder="Uses the file or link name"></div>
-<div><label for="campaign">Campaign</label>
+{{if .Dev}}<div><label for="campaign">Campaign</label>
 <select id="campaign" name="campaign"><option value="">No campaign</option>
 {{range .Campaigns}}<option value="{{.ID}}"{{if eq $.Picked .ID}} selected{{end}}>{{.Title}}</option>
 {{end}}</select>
-</div>
+</div>{{end}}
 <div><label for="clips">Clips to make</label>
 <input id="clips" name="clips" type="number" min="1" max="5" value="3" required></div>
 <div class="form-grid"><div><label for="min_s">Shortest (s)</label>

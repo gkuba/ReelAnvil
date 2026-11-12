@@ -60,14 +60,14 @@
 </div>
 {{end}}<div class="card table-wrap"><h2>All jobs</h2>
 <table class="table"><thead><tr><th>Job</th>
-<th>Campaign</th>
+{{if $.Dev}}<th>Campaign</th>{{end}}
 <th>State</th>
 <th>Time</th>
 <th>Created</th>
 </tr>
 </thead>
 <tbody>{{range .Jobs}}<tr><td><a href="/jobs?id={{.ID}}"><strong>{{.ID}} · {{.Title}}</strong></a><span class="muted">{{.Detail}}</span></td>
-<td>{{if .CampaignTitle}}{{.CampaignTitle}}{{else}}<span class="muted">None</span>{{end}}</td>
+{{if $.Dev}}<td>{{if .CampaignTitle}}{{.CampaignTitle}}{{else}}<span class="muted">None</span>{{end}}</td>{{end}}
 <td><span class="badge status">{{.State}}</span></td>
 <td>{{elapsed .Elapsed}}</td>
 <td>{{when .CreatedAt}}</td>

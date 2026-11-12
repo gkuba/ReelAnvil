@@ -48,8 +48,10 @@ type Options struct {
 type Settings struct {
 	Version      int    `json:"version"`
 	InstanceName string `json:"instance_name"`
-	Theme        string `json:"theme"`
-	IconVariant  string `json:"icon_variant"`
+	// DevFeatures shows the unfinished Campaigns area (Settings > General).
+	DevFeatures bool   `json:"dev_features,omitempty"`
+	Theme       string `json:"theme"`
+	IconVariant string `json:"icon_variant"`
 	// ThemeIcons is retained only to preserve older per-theme preferences when
 	// upgrading. Build 0.9.1 uses IconVariant as the global icon choice.
 	ThemeIcons map[string]string `json:"theme_icons"`
@@ -384,12 +386,12 @@ func Doctor(opts Options) error {
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.page)
-	mux.HandleFunc("/campaigns", s.campaignsPage)
-	mux.HandleFunc("/campaigns/add", s.addCampaign)
-	mux.HandleFunc("/campaigns/track", s.trackCampaign)
-	mux.HandleFunc("/campaigns/untrack", s.untrackCampaign)
-	mux.HandleFunc("/campaigns/status", s.setCampaignStatus)
-	mux.HandleFunc("/campaigns/update", s.updateCampaign)
+	mux.HandleFunc("/campaigns", s.devOnly(s.campaignsPage))
+	mux.HandleFunc("/campaigns/add", s.devOnly(s.addCampaign))
+	mux.HandleFunc("/campaigns/track", s.devOnly(s.trackCampaign))
+	mux.HandleFunc("/campaigns/untrack", s.devOnly(s.untrackCampaign))
+	mux.HandleFunc("/campaigns/status", s.devOnly(s.setCampaignStatus))
+	mux.HandleFunc("/campaigns/update", s.devOnly(s.updateCampaign))
 	mux.HandleFunc("/media", s.mediaPage)
 	mux.HandleFunc("/media/jobs", s.createJob)
 	mux.HandleFunc("/media/clip/", s.clipFile)
@@ -611,6 +613,9 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 	}
 	next := s.cfg
 	next.Version, next.InstanceName, next.Theme = settingsVersion, name, theme
+	if r.Form.Has("dev_present") {
+		next.DevFeatures = r.FormValue("dev_features") == "on"
+	}
 	if r.Form.Has("icon_variant") {
 		if !validIconVariant(iconVariant) {
 			http.Error(w, "invalid icon variant", http.StatusBadRequest)

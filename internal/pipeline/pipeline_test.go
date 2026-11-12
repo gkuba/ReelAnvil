@@ -255,3 +255,21 @@ func TestFixPromptNamesTheNoteAndTheOriginalRange(t *testing.T) {
 		t.Errorf("picks %+v problems %v", picks, problems)
 	}
 }
+
+func TestParseEndChecksRangeAndLength(t *testing.T) {
+	s := segs(30, 5000) // 5 s lines
+	if e, ok := ParseEnd(`{"end": 9}`, s, 2, 20, 20); !ok || e != 9 {
+		t.Fatalf("end = %d %v", e, ok)
+	}
+	for _, raw := range []string{`{"end": 21}`, `{"end": 1}`, `{"end": 3}`, `nope`, `{"end":"x"}`} {
+		if _, ok := ParseEnd(raw, s, 2, 20, 20); ok {
+			t.Fatalf("%s accepted", raw)
+		}
+	}
+	if got := EndLimit(s, 0, 60); got != 23 { // 120 s cap = 24 lines (0..23)
+		t.Fatalf("limit = %d", got)
+	}
+	if !strings.Contains(EndPrompt(Brief{}, s, 2, 6, 10), "[10]") {
+		t.Fatal("prompt misses the last line")
+	}
+}

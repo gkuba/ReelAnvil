@@ -25,6 +25,8 @@ type overviewPageData struct {
 	pageBase
 	Campaigns                      []store.Campaign
 	Available, Tracked, EndingSoon int
+	Running, ToReview, Approved    int
+	Recent                         []store.Job
 }
 
 // CampaignDiscoveryAdapter is the only integration boundary for public
@@ -283,6 +285,10 @@ func deadlineLabel(value string) string {
 }
 
 func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request) {
+	if !s.devOn() {
+		s.pipelineOverview(w, r)
+		return
+	}
 	all, err := s.campaignSnapshot()
 	if err != nil {
 		s.log.Println("list campaigns:", err)
@@ -304,4 +310,34 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request) {
 		pageBase:  s.base(w, r, "Overview", "overview"),
 		Campaigns: trackedRows, Available: available, Tracked: tracked, EndingSoon: ending,
 	})
+}
+
+// pipelineOverview is the Overview page while Developer features are off.
+func (s *Server) pipelineOverview(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), storeTimeout)
+	defer cancel()
+	data := overviewPageData{pageBase: s.base(w, r, "Overview", "overview")}
+	jobs, err := s.store.ListJobs(ctx, 50)
+	if err != nil {
+		s.log.Println("list jobs:", err)
+	}
+	for _, j := range jobs {
+		if j.State == store.JobRunning || j.State == store.JobQueued {
+			data.Running++
+		}
+	}
+	data.Recent = jobs[:min(len(jobs), 5)]
+	clips, err := s.store.ListClips(ctx, "", 0)
+	if err != nil {
+		s.log.Println("list clips:", err)
+	}
+	for _, c := range clips {
+		switch {
+		case c.Decision == store.DecisionApproved:
+			data.Approved++
+		case c.Decision == store.DecisionPending && c.QAPass:
+			data.ToReview++
+		}
+	}
+	s.render(w, "overview", data)
 }
