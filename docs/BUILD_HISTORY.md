@@ -6,7 +6,8 @@ One maintained record of what was built, how it was checked, and where it landed
 
 - **Changes:** `pipeline/clipedit.go` (WordCues, FillerSpans, KeepSpans, Remap, CuesSRT, ASS); worker op `silences` and render with `keep` pieces and an ASS file; `renderClip` in the job with a whole-clip fallback; manifest `expected_ms` used by QA; Settings → Media → Clip rendering (`trim_silences`, `word_captions`, `title_card`, default on).
 - **Verified:** gofmt, vet, `go test -race ./...` including a real-FFmpeg worker test (silence found, two tones joined to 4.4 s, bad piece rejected).
-- **Not verified:** the look of the burned captions and title card on a real clip.
+- **Deployed to pixelreel (live, port 4747) and tested, builds 07bb7d8, 280c4d0, b00dcd9:** jobs 6 and 7 cut and joined pieces but burned captions and the title card were blank: the media container has no fontconfig setup, so libass could not use the fonts in the folder (also, only icon fonts were in it). Fix: icon fonts skipped, fontconfig file given to FFmpeg, DejaVu Sans via Debian `fonts-dejavu-core` (installed by `upgrade`, which now installs newly required packages). Job 8 (STS-135 FD7, 14b models): title card and three-word captions visible in frames of the finished clip, 3 pieces joined, QA passed. That run accepted only 1 of 10 candidates (reviewer variability; job 5 accepted 3 of 6).
+- **Not verified:** exact caption timing against speech (estimated per line); the other clips of jobs 6-8 by eye.
 
 ## 2026-11-12 — Build 0.9.2: release readiness (not committed until pushed below)
 
